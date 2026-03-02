@@ -61,6 +61,7 @@ export default function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingFilm, setEditingFilm] = useState<Partial<Film> | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>("All");
+  const [deleteTarget, setDeleteTarget] = useState<Film | null>(null);
   
   // New states for Settings and Sync
   const [connectionStatus, setConnectionStatus] = useState<"connected" | "disconnected" | "connecting">("connecting");
@@ -70,7 +71,6 @@ export default function App() {
   const [syncSuccess, setSyncSuccess] = useState(false);
 
   const [isFirebaseConfigured, setIsFirebaseConfigured] = useState(true);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     // Check if critical Firebase keys are present and not placeholders
@@ -130,6 +130,11 @@ export default function App() {
     // Submission lock
     if (isSyncing) return;
 
+    if (!isFirebaseConfigured) {
+      setSyncError("Firebase is not configured. Please add credentials in Settings.");
+      return;
+    }
+
     // Data Cleaning & Validation
     const cleanStr = (str: any) => {
       if (typeof str !== 'string') return null;
@@ -148,7 +153,6 @@ export default function App() {
     const hasValue = originalTitle || translatedTitle || summary_original_raw || summary_vi_raw || originalPoster || editedPoster;
 
     if (!hasValue) {
-      console.warn("[handleSaveFilm] Validation failed: no value provided.");
       setSyncError("Please provide at least one piece of information (title, summary, or poster).");
       return;
     }
@@ -189,68 +193,34 @@ export default function App() {
         title: translatedTitle || originalTitle || "Untitled Film"
       };
 
-      console.log("[handleSaveFilm] Prepared payload", {
-        mode: editingFilm?.id ? "update" : "create",
-        hasId: !!editingFilm?.id,
-        originalTitle,
-        translatedTitle,
-        hasOriginalPoster: !!originalPoster,
-        hasEditedPoster: !!editedPoster,
-        hasSummaryOriginal: !!summary_original,
-        hasSummaryVi: !!summary_vi,
-        score: filmToSave.score,
-        status: filmToSave.status,
-      });
-
-      const isUpdate = !!editingFilm?.id;
-
-      if (isUpdate) {
-        await api.updateFilm(editingFilm!.id as string, filmToSave);
+      if (editingFilm?.id) {
+        await api.updateFilm(editingFilm.id, filmToSave);
       } else {
         await api.createFilm(filmToSave);
       }
-
-      // Chỉ khi Promise ở trên resolve thành công mới báo Saved + đóng modal
       setSyncSuccess(true);
       setTimeout(() => setSyncSuccess(false), 3000);
       setIsModalOpen(false);
       setEditingFilm(null);
     } catch (error: any) {
-      const isCreate = !editingFilm?.id;
-      console.error("[handleSaveFilm] Failed to save film", {
-        mode: isCreate ? "create" : "update",
-        id: editingFilm?.id,
-        error,
-        name: error?.name,
-        message: error?.message,
-        code: error?.code,
-        stack: error?.stack,
-      });
-
-      const baseMessage = error?.message || "Failed to sync with database";
-      const codeInfo = error?.code ? ` (code: ${error.code})` : "";
-      const operationInfo = isCreate ? "createFilm" : "updateFilm";
-
-      setSyncError(`${baseMessage}${codeInfo} [operation=${operationInfo}]`);
+      console.error("Failed to save film", error);
+      setSyncError(error.message || "Failed to sync with database");
     } finally {
       setIsSyncing(false);
     }
   };
 
-  const handleDeleteFilm = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this film?")) return;
-    
-    setDeletingId(id);
-    setSyncError(null);
-    
+  const performDeleteFilm = async (id: string) => {
+    setIsSyncing(true);
     try {
       await api.deleteFilm(id);
-      // Success will be handled by the real-time subscription update
+      setSyncSuccess(true);
+      setTimeout(() => setSyncSuccess(false), 3000);
     } catch (error: any) {
       console.error("Failed to delete film", error);
       setSyncError(error.message || "Failed to delete from database");
     } finally {
-      setDeletingId(null);
+      setIsSyncing(false);
     }
   };
 
@@ -541,20 +511,10 @@ export default function App() {
                                 <MoreHorizontal className="w-4 h-4" />
                               </button>
                               <button 
-                                onClick={() => handleDeleteFilm(film.id)}
-                                disabled={deletingId === film.id}
-                                className={`p-2 rounded-lg border border-transparent transition-all ${
-                                  deletingId === film.id 
-                                    ? "bg-red-900/10 text-red-400/50 cursor-not-allowed" 
-                                    : "text-app-text-secondary hover:text-red-400 hover:bg-red-900/20 hover:border-red-900/50"
-                                }`}
-                                title="Delete Film"
+                                onClick={() => setDeleteTarget(film)}
+                                className="p-2 text-app-text-secondary hover:text-red-400 hover:bg-red-900/20 rounded-lg border border-transparent hover:border-red-900/50 transition-all"
                               >
-                                {deletingId === film.id ? (
-                                  <div className="w-4 h-4 border-2 border-red-400/30 border-t-red-400 rounded-full animate-spin" />
-                                ) : (
-                                  <Trash2 className="w-4 h-4" />
-                                )}
+                                <Trash2 className="w-4 h-4" />
                               </button>
                             </div>
                           </td>
@@ -873,13 +833,7 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="pt-6 border-t border-app-border flex flex-col gap-3">
-                  {syncError && (
-                    <div className="text-xs text-red-400 bg-red-900/20 border border-red-800/50 rounded-xl px-4 py-2">
-                      {syncError}
-                    </div>
-                  )}
-                  <div className="flex justify-end gap-3">
+                <div className="pt-6 border-t border-app-border flex justify-end gap-3">
                   <button 
                     type="button"
                     onClick={() => setIsModalOpen(false)}
@@ -901,9 +855,110 @@ export default function App() {
                       'Save'
                     )}
                   </button>
-                  </div>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {deleteTarget && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setDeleteTarget(null)}
+              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-app-surface rounded-3xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col relative z-10 border border-app-border"
+            >
+              <div className="p-6 border-b border-app-border flex items-center gap-3">
+                <div className="p-2 rounded-full bg-red-900/30 border border-red-800/60">
+                  <Trash2 className="w-5 h-5 text-red-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-app-text-primary">Delete film?</h3>
+                  <p className="text-xs text-app-text-secondary mt-1">
+                    This action cannot be undone. The film will be permanently removed from your library.
+                  </p>
+                </div>
+              </div>
+              <div className="p-6 space-y-4">
+                <div className="bg-app-surface-hover border border-app-border rounded-2xl p-4 flex gap-3 items-start">
+                  <div className="w-9 h-12 bg-app-surface rounded-md overflow-hidden flex-shrink-0 border border-app-border">
+                    {deleteTarget.originalPoster ? (
+                      <img
+                        src={deleteTarget.originalPoster}
+                        alt={deleteTarget.title}
+                        className="w-full h-full object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-app-text-secondary/30">
+                        <FilmIcon className="w-4 h-4" />
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-app-text-primary">
+                      {deleteTarget.translatedTitle || deleteTarget.title}
+                    </div>
+                    {deleteTarget.originalTitle && (
+                      <div className="text-[11px] text-app-text-secondary/70 italic mt-0.5">
+                        {deleteTarget.originalTitle}
+                      </div>
+                    )}
+                    <div className="text-[11px] text-app-text-secondary mt-2">
+                      Are you sure you want to permanently delete this film?
+                    </div>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setDeleteTarget(null)}
+                    className="px-5 py-2.5 text-sm font-medium text-app-text-secondary hover:text-app-text-primary rounded-full hover:bg-app-surface-hover transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isSyncing}
+                    onClick={async () => {
+                      if (!deleteTarget?.id) {
+                        setDeleteTarget(null);
+                        return;
+                      }
+                      await performDeleteFilm(deleteTarget.id);
+                      setDeleteTarget(null);
+                    }}
+                    className={`px-5 py-2.5 rounded-full text-sm font-medium flex items-center gap-2 border transition-all ${
+                      isSyncing
+                        ? "bg-red-600/70 border-red-700/80 text-white cursor-not-allowed opacity-80"
+                        : "bg-red-600 hover:bg-red-500 border-red-700 text-white shadow-lg shadow-red-900/40"
+                    }`}
+                  >
+                    {isSyncing ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        Deleting...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="w-4 h-4" />
+                        Delete
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
             </motion.div>
           </div>
         )}

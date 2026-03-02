@@ -23,25 +23,11 @@ const mapStatus = (status: any): ProductionStatus => {
   return ProductionStatus.IN_ANALYSIS;
 };
 
-const withTimeout = <T>(
-  promise: Promise<T>, 
-  operationName: string, 
-  timeoutMs: number = SYNC_TIMEOUT
-): Promise<T> => {
+const withTimeout = <T>(promise: Promise<T>, operationName: string, timeoutMs: number = SYNC_TIMEOUT): Promise<T> => {
   return Promise.race([
     promise,
     new Promise<T>((_, reject) => 
-      setTimeout(() => {
-        const timeoutError = new Error(
-          `Database operation '${operationName}' timed out after ${timeoutMs/1000}s. This usually indicates a configuration issue, network problem, or a payload that is too large (Firestore limit is 1MB).`
-        );
-        console.error("[withTimeout] Operation timed out", {
-          operationName,
-          timeoutMs,
-          message: timeoutError.message,
-        });
-        reject(timeoutError);
-      }, timeoutMs)
+      setTimeout(() => reject(new Error(`Database operation '${operationName}' timed out after ${timeoutMs/1000}s. This usually indicates a configuration issue, network problem, or a payload that is too large (Firestore limit is 1MB).`)), timeoutMs)
     )
   ]);
 };
@@ -130,27 +116,11 @@ export const api = {
         console.warn("Warning: Payload is approaching Firestore's 1MB limit. Consider using smaller images.");
       }
 
-      console.log("[createFilm] Final payload to Firestore:", {
-        id,
-        payloadSizeBytes: payloadSize,
-        hasOriginalPoster: !!filmData.originalPosterUrl,
-        hasEditedPoster: !!filmData.editedPosterUrl,
-        productionStatus: filmData.productionStatus,
-        createdAt: filmData.createdAt,
-      });
-
-      console.log("[createFilm] Calling Firestore setDoc without timeout...");
-      await setDoc(doc(db, FILMS_COLLECTION, id), filmData);
-      console.log("Film successfully created in Firestore (no timeout wrapper).");
+      await withTimeout(setDoc(doc(db, FILMS_COLLECTION, id), filmData), "createFilm");
+      console.log("Film successfully created in Firestore.");
       return { id };
     } catch (error) {
-      console.error("Error creating film in Firestore:", {
-        error,
-        name: (error as any)?.name,
-        message: (error as any)?.message,
-        code: (error as any)?.code,
-        stack: (error as any)?.stack,
-      });
+      console.error("Error creating film in Firestore:", error);
       throw error;
     }
   },
@@ -184,25 +154,10 @@ export const api = {
       const payloadSize = JSON.stringify(updateData).length;
       console.log(`Update payload size: ~${(payloadSize / 1024).toFixed(2)} KB`);
 
-      console.log("[updateFilm] Final payload to Firestore:", {
-        id,
-        payloadSizeBytes: payloadSize,
-        keys: Object.keys(updateData),
-        productionStatus: updateData.productionStatus,
-      });
-
-      console.log("[updateFilm] Calling Firestore updateDoc without timeout...");
-      await updateDoc(filmRef, updateData);
-      console.log("Film successfully updated in Firestore (no timeout wrapper).");
+      await withTimeout(updateDoc(filmRef, updateData), "updateFilm");
+      console.log("Film successfully updated in Firestore.");
     } catch (error) {
-      console.error("Error updating film in Firestore:", {
-        error,
-        id,
-        name: (error as any)?.name,
-        message: (error as any)?.message,
-        code: (error as any)?.code,
-        stack: (error as any)?.stack,
-      });
+      console.error("Error updating film in Firestore:", error);
       throw error;
     }
   },
