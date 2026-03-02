@@ -1,0 +1,43 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  
+  --color-app-bg: #0D1117;
+  --color-app-surface: #161B22;
+  --color-app-surface-hover: #21262D;
+  --color-app-border: #30363D;
+  --color-app-text-primary: #C9D1D9;
+  --color-app-text-secondary: #8B949E;
+  --color-app-accent: #58A6FF;
+}
+
+@layer base {
+  body {
+    @apply bg-app-bg text-app-text-primary font-sans;
+  }
+}
+
+.glass-card {
+  @apply bg-app-surface border border-app-border shadow-lg shadow-black/20;
+}
+
+.data-grid-border {
+  @apply border-app-border;
+}
+
+/* Custom scrollbar for dark mode */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-app-bg;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-app-border rounded-full hover:bg-app-text-secondary/30 transition-colors;
+}
