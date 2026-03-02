@@ -77,8 +77,28 @@ export default function App() {
   const [titleStyle, setTitleStyle] = useState<"clickbait" | "neutral_seo" | "dramatic" | "short">("neutral_seo");
 
   const [isGeneratingSeo, setIsGeneratingSeo] = useState(false);
+  const [seoError, setSeoError] = useState<string | null>(null);
+
+  // Global toast error for AI + Firebase operations
+  const [appError, setAppError] = useState<string | null>(null);
 
   const [isFirebaseConfigured, setIsFirebaseConfigured] = useState(true);
+
+  // Auto-hide global error toast after 3s
+  useEffect(() => {
+    if (!appError) return;
+    const timer = setTimeout(() => setAppError(null), 3000);
+    return () => clearTimeout(timer);
+  }, [appError]);
+
+  // Auto-hide YouTube SEO error toast sau 3 giây
+  useEffect(() => {
+    if (!seoError) return;
+    const timer = setTimeout(() => {
+      setSeoError(null);
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [seoError]);
 
   useEffect(() => {
     // Check if critical Firebase keys are present and not placeholders
@@ -104,6 +124,7 @@ export default function App() {
       console.error("Failed to subscribe to films:", error);
       setConnectionStatus("disconnected");
       setSyncError("Connection failed: " + error.message);
+      setAppError("Không kết nối được Firebase. Vui lòng kiểm tra cấu hình và mạng rồi thử lại.");
       setIsLoading(false);
     });
 
@@ -140,6 +161,7 @@ export default function App() {
 
     if (!isFirebaseConfigured) {
       setSyncError("Firebase is not configured. Please add credentials in Settings.");
+      setAppError("Firebase chưa được cấu hình. Vui lòng vào Settings để thêm credentials trước khi lưu.");
       return;
     }
 
@@ -162,6 +184,7 @@ export default function App() {
 
     if (!hasValue) {
       setSyncError("Please provide at least one piece of information (title, summary, or poster).");
+      setAppError("Cần nhập ít nhất một thông tin (tiêu đề, tóm tắt hoặc poster) trước khi lưu.");
       return;
     }
 
@@ -183,6 +206,8 @@ export default function App() {
         summary_vi: summary_vi || "",
         originalPoster,
         editedPoster,
+        youtubeDescription: editingFilm?.youtubeDescription || "",
+        youtubeTags: editingFilm?.youtubeTags || "",
         title: translatedTitle || originalTitle || "Untitled Film"
       };
 
@@ -198,6 +223,7 @@ export default function App() {
     } catch (error: any) {
       console.error("Failed to save film", error);
       setSyncError(error.message || "Failed to sync with database");
+      setAppError("Lưu dữ liệu lên Firebase thất bại. Vui lòng thử lại.");
     } finally {
       setIsSyncing(false);
     }
@@ -225,6 +251,7 @@ export default function App() {
     } catch (error: any) {
       console.error("Failed to translate content", error);
       setSyncError(error.message || "Failed to translate content");
+      setAppError("Dịch summary sang tiếng Việt bằng AI bị lỗi. Vui lòng thử lại.");
     } finally {
       setIsTranslating(false);
     }
@@ -251,6 +278,7 @@ export default function App() {
     } catch (error: any) {
       console.error("Failed to generate YouTube titles", error);
       setSyncError(error.message || "Failed to generate YouTube titles");
+      setAppError("Tạo gợi ý tiêu đề YouTube bằng AI bị lỗi. Vui lòng thử lại.");
     } finally {
       setIsGeneratingTitles(false);
     }
@@ -268,31 +296,55 @@ export default function App() {
     }
 
     setIsGeneratingSeo(true);
-    setSyncError(null);
+    setSeoError(null);
 
     try {
       const result = await generateYoutubeSeoMeta(vietnameseTitle, summaryText);
-      if (result) {
-        const parts = result.split(/TAGS:/i);
-        const descriptionBlock = parts[0] || "";
-        const tagsBlock = parts[1] || "";
 
-        const youtubeDescription = descriptionBlock.replace(/MÔ TẢ VIDEO:\s*/i, "").trim();
-        const youtubeTags = tagsBlock.trim();
-
-        setEditingFilm(prev =>
-          prev
-            ? {
-                ...prev,
-                youtubeDescription,
-                youtubeTags,
-              }
-            : prev
-        );
+      // Nếu AI trả về rỗng (hoặc chỉ toàn khoảng trắng) thì coi như lỗi để báo lên UI
+      if (!result || !result.trim()) {
+        const msg = "Không tạo được mô tả YouTube. Vui lòng kiểm tra cấu hình Gemini API rồi thử lại.";
+        setSeoError(msg);
+        setAppError(msg);
+        return;
       }
+
+      const parts = result.split(/TAGS:/i);
+      const descriptionBlock = parts[0] || "";
+      const tagsBlock = parts[1] || "";
+
+      const youtubeDescription = descriptionBlock.replace(/MÔ TẢ VIDEO:\s*/i, "").trim();
+      const youtubeTags = tagsBlock.trim();
+
+      if (!youtubeDescription || !youtubeTags) {
+        const msg = "Kết quả mô tả/tags không hợp lệ. Vui lòng thử tạo lại mô tả YouTube.";
+        setSeoError(msg);
+        setAppError(msg);
+        return;
+      }
+
+      setEditingFilm(prev =>
+        prev
+          ? {
+              ...prev,
+              youtubeDescription,
+              youtubeTags,
+            }
+          : prev
+      );
     } catch (error: any) {
       console.error("Failed to generate YouTube SEO meta", error);
-      setSyncError(error.message || "Failed to generate YouTube SEO meta");
+
+      let msg = "Không tạo được mô tả YouTube. Vui lòng kiểm tra Gemini API và thử lại.";
+
+      const rawMessage = String(error?.message || "");
+      if (rawMessage.includes("You exceeded your current quota") || rawMessage.includes("RESOURCE_EXHAUSTED")) {
+        msg =
+          "Đã vượt giới hạn quota miễn phí của Gemini API cho hôm nay. Vui lòng đợi hoặc nâng gói/quota rồi thử lại.";
+      }
+
+      setSeoError(msg);
+      setAppError(msg);
     } finally {
       setIsGeneratingSeo(false);
     }
@@ -307,6 +359,7 @@ export default function App() {
     } catch (error: any) {
       console.error("Failed to delete film", error);
       setSyncError(error.message || "Failed to delete from database");
+       setAppError("Xoá dữ liệu trên Firebase thất bại. Vui lòng thử lại.");
     } finally {
       setIsSyncing(false);
     }
@@ -321,6 +374,8 @@ export default function App() {
       status: ProductionStatus.IN_ANALYSIS,
       summary_original: "",
       summary_vi: "",
+      youtubeDescription: "",
+      youtubeTags: "",
     });
     setIsModalOpen(true);
   };
@@ -436,6 +491,16 @@ export default function App() {
             </button>
           </div>
         </header>
+
+        {/* Floating global error toast for AI + Firebase operations */}
+        {appError && (
+          <div className="fixed top-6 right-6 z-[60]">
+            <div className="max-w-sm bg-red-900/90 border border-red-700 rounded-2xl px-4 py-3 shadow-xl shadow-red-900/40">
+              <p className="text-xs font-semibold text-red-100 mb-1">Thông báo lỗi</p>
+              <p className="text-xs text-red-100/90">{appError}</p>
+            </div>
+          </div>
+        )}
 
         <div className="p-8 max-w-7xl mx-auto w-full">
           {view === "dashboard" ? (
@@ -698,6 +763,7 @@ export default function App() {
                           setTimeout(() => setSyncSuccess(false), 2000);
                         } catch (e) {
                           setSyncError("Health check failed");
+                          setAppError("Health check Firebase thất bại. Vui lòng kiểm tra cấu hình và thử lại.");
                         } finally {
                           setIsSyncing(false);
                         }
@@ -748,7 +814,7 @@ export default function App() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-app-surface rounded-3xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col relative z-10 border border-app-border"
+              className="bg-app-surface rounded-3xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col relative z-10 border border-app-border"
             >
               <div className="p-6 border-b border-app-border flex justify-between items-center">
                 <h3 className="text-xl font-bold text-app-text-primary">{editingFilm?.id ? "Edit Film" : "New Film"}</h3>
@@ -776,15 +842,26 @@ export default function App() {
                                 if (!editingFilm?.originalPoster || isExtractingTitle) return;
                                 setIsExtractingTitle(true);
                                 setSyncError(null);
-                              try {
-                                const title = await extractOriginalTitleFromPoster(editingFilm.originalPoster);
-                                if (!title) return;
-                                const viTitle = await translateToVietnamese(title);
-                                const combined = viTitle ? `${title} (${viTitle})` : title;
-                                setEditingFilm(prev => (prev ? { ...prev, originalTitle: combined } : prev));
-                              } catch (error: any) {
+                                try {
+                                  const title = await extractOriginalTitleFromPoster(editingFilm.originalPoster);
+                                  if (!title) {
+                                    const msg = "AI không đọc được tiêu đề từ poster. Vui lòng thử lại hoặc nhập tay.";
+                                    setAppError(msg);
+                                    return;
+                                  }
+                                  const viTitle = await translateToVietnamese(title);
+                                  const combined = viTitle ? `${title} (${viTitle})` : title;
+                                  setEditingFilm(prev => (prev ? { ...prev, originalTitle: combined } : prev));
+                                } catch (error: any) {
                                   console.error("Failed to extract title from poster", error);
+                                  let msg = "AI không đọc được tiêu đề từ poster. Vui lòng thử lại hoặc nhập tay.";
+                                  const rawMessage = String(error?.message || "");
+                                  if (rawMessage.includes("You exceeded your current quota") || rawMessage.includes("RESOURCE_EXHAUSTED")) {
+                                    msg =
+                                      "Đã vượt giới hạn quota miễn phí của Gemini API cho hôm nay. Lấy tiêu đề từ poster tạm thời không dùng được.";
+                                  }
                                   setSyncError(error.message || "Failed to extract title from poster");
+                                  setAppError(msg);
                                 } finally {
                                   setIsExtractingTitle(false);
                                 }
@@ -930,55 +1007,6 @@ export default function App() {
                       </div>
                     </div>
 
-                    {/* YouTube SEO Description & Tags */}
-                    {(isGeneratingSeo || editingFilm?.youtubeDescription || editingFilm?.youtubeTags) && (
-                      <div className="glass-card bg-app-surface-hover/40 border border-app-border rounded-2xl p-4 space-y-3">
-                        {isGeneratingSeo && !editingFilm?.youtubeDescription && !editingFilm?.youtubeTags && (
-                          <div className="text-[12px] text-app-text-secondary">
-                            Đang tạo mô tả và tags YouTube...
-                          </div>
-                        )}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-[11px] font-semibold text-app-text-secondary uppercase tracking-wider mb-2">
-                              Mô tả video (SEO YouTube)
-                            </label>
-                            <textarea
-                              rows={10}
-                              value={editingFilm?.youtubeDescription || ""}
-                              onChange={e =>
-                                setEditingFilm(prev =>
-                                  prev ? { ...prev, youtubeDescription: e.target.value } : prev
-                                )
-                              }
-                              placeholder="MÔ TẢ VIDEO:
-...
-
-TAGS:
-..."
-                              className="w-full px-3 py-2 bg-app-surface border border-app-border rounded-xl text-xs text-app-text-primary whitespace-pre-wrap resize-y min-h-[160px]"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[11px] font-semibold text-app-text-secondary uppercase tracking-wider mb-2">
-                              Tags YouTube
-                            </label>
-                            <textarea
-                              rows={10}
-                              value={editingFilm?.youtubeTags || ""}
-                              onChange={e =>
-                                setEditingFilm(prev =>
-                                  prev ? { ...prev, youtubeTags: e.target.value } : prev
-                                )
-                              }
-                              placeholder="tag1, tag2, tag3, ..."
-                              className="w-full px-3 py-2 bg-app-surface border border-app-border rounded-xl text-xs text-app-text-primary whitespace-pre-wrap resize-y min-h-[160px]"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
                     {/* YouTube Title Suggestions */}
                     {(isGeneratingTitles || titleSuggestions.length > 0) && (
                       <div className="glass-card bg-app-surface-hover/40 border border-app-border rounded-2xl p-4 space-y-3">
@@ -1029,11 +1057,11 @@ TAGS:
                           Summary (Chinese)
                         </label>
                         <textarea
-                          rows={8}
+                          rows={10}
                           value={editingFilm?.summary_original || ""}
                           onChange={e => setEditingFilm({ ...editingFilm, summary_original: e.target.value })}
                           placeholder="中文剧情简介"
-                          className="w-full px-4 py-3 bg-app-surface-hover border border-app-border rounded-xl focus:outline-none focus:ring-2 focus:ring-app-accent/20 transition-all resize-none text-app-text-primary placeholder:text-app-text-secondary/50 h-48 overflow-y-auto"
+                          className="w-full px-4 py-3 bg-app-surface-hover border border-app-border rounded-xl focus:outline-none focus:ring-2 focus:ring-app-accent/20 transition-all resize-none text-sm text-app-text-primary placeholder:text-app-text-secondary/50 h-64 overflow-y-auto"
                         />
                       </div>
                       <div>
@@ -1064,11 +1092,57 @@ TAGS:
                           </button>
                         </div>
                         <textarea
-                          rows={8}
+                          rows={10}
                           value={editingFilm?.summary_vi || ""}
                           onChange={e => setEditingFilm({ ...editingFilm, summary_vi: e.target.value })}
                           placeholder="Tóm tắt nội dung tiếng Việt"
-                          className="w-full px-4 py-3 bg-app-surface-hover border border-app-border rounded-xl focus:outline-none focus:ring-2 focus:ring-app-accent/20 transition-all resize-none text-app-text-primary placeholder:text-app-text-secondary/50 h-48 overflow-y-auto"
+                          className="w-full px-4 py-3 bg-app-surface-hover border border-app-border rounded-xl focus:outline-none focus:ring-2 focus:ring-app-accent/20 transition-all resize-none text-sm text-app-text-primary placeholder:text-app-text-secondary/50 h-64 overflow-y-auto"
+                        />
+                      </div>
+                    </div>
+
+                    {/* YouTube SEO Description & Tags (UI giống Summary) */}
+                    {seoError && !isGeneratingSeo && (
+                      <div className="text-[12px] text-red-300 bg-red-900/30 border border-red-800/60 rounded-xl px-3 py-2 mt-4">
+                        {seoError}
+                      </div>
+                    )}
+                    {isGeneratingSeo && !editingFilm?.youtubeDescription && !editingFilm?.youtubeTags && (
+                      <div className="text-[12px] text-app-text-secondary mt-2">
+                        Đang tạo mô tả và tags YouTube...
+                      </div>
+                    )}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-app-text-secondary uppercase tracking-wider mb-2">
+                          Mô tả video (SEO YouTube)
+                        </label>
+                        <textarea
+                          rows={10}
+                          value={editingFilm?.youtubeDescription || ""}
+                          onChange={e =>
+                            setEditingFilm(prev =>
+                              prev ? { ...prev, youtubeDescription: e.target.value } : prev
+                            )
+                          }
+                          placeholder="Mô tả YouTube tối ưu SEO cho cả series..."
+                          className="w-full px-4 py-3 bg-app-surface-hover border border-app-border rounded-xl focus:outline-none focus:ring-2 focus:ring-app-accent/20 transition-all resize-none text-sm text-app-text-primary placeholder:text-app-text-secondary/50 h-64 overflow-y-auto"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-app-text-secondary uppercase tracking-wider mb-2">
+                          Tags YouTube
+                        </label>
+                        <textarea
+                          rows={10}
+                          value={editingFilm?.youtubeTags || ""}
+                          onChange={e =>
+                            setEditingFilm(prev =>
+                              prev ? { ...prev, youtubeTags: e.target.value } : prev
+                            )
+                          }
+                          placeholder="tag1, tag2, tag3, ..."
+                          className="w-full px-4 py-3 bg-app-surface-hover border border-app-border rounded-xl focus:outline-none focus:ring-2 focus:ring-app-accent/20 transition-all resize-none text-sm text-app-text-primary placeholder:text-app-text-secondary/50 h-64 overflow-y-auto"
                         />
                       </div>
                     </div>

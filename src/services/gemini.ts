@@ -7,7 +7,7 @@ export const translateToVietnamese = async (text: string): Promise<string> => {
   
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.5-flash",
       contents: `Translate the following text to Vietnamese. If it's already in Vietnamese, return it as is. Use natural Vietnamese that is easy to understand. You may use common Sino-Vietnamese terms (Hán-Việt) that people frequently see in film titles, but avoid extremely rare, archaic, or overly academic words. Text: "${text}"`,
       config: {
         systemInstruction: "You are a professional Vietnamese translator. Translate the provided text to clear Vietnamese suitable for film and drama titles. It is OK to use common Sino-Vietnamese words (like 'dị thế', 'huyền bí', 'khám phá'), but avoid very heavy, obscure, or archaic Hán-Việt that normal viewers rarely use. Only return the translated text, nothing else.",
@@ -40,7 +40,7 @@ export const extractOriginalTitleFromPoster = async (imageDataUrl: string): Prom
     const base64Data = match[2];
 
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.5-flash",
       contents: [
         {
           role: "user",
@@ -67,7 +67,8 @@ export const extractOriginalTitleFromPoster = async (imageDataUrl: string): Prom
     return response.text?.trim() || "";
   } catch (error) {
     console.error("Title extraction error:", error);
-    return "";
+    // Không nuốt lỗi để UI có thể hiển thị lỗi AI
+    throw error;
   }
 };
 
@@ -79,7 +80,7 @@ export const generateYoutubeTitles = async (
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.5-flash",
       contents: [
         {
           role: "user",
@@ -124,7 +125,8 @@ export const generateYoutubeTitles = async (
       .slice(0, 10);
   } catch (error) {
     console.error("generateYoutubeTitles error:", error);
-    return [];
+    // Không nuốt lỗi để UI có thể hiển thị lỗi AI
+    throw error;
   }
 };
 
@@ -138,44 +140,66 @@ export const generateYoutubeSeoMeta = async (
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.5-flash",
       contents: [
         {
           role: "user",
           parts: [
             {
               text: [
-                "Bạn là chuyên gia tối ưu SEO YouTube cho nội dung tóm tắt phim/hoạt hình.",
-                "Dựa trên TIÊU ĐỀ TIẾNG VIỆT (bắt buộc) và TÓM TẮT (nếu có), hãy tạo mô tả video chuẩn SEO YouTube và bộ thẻ (tags) tối ưu tìm kiếm.",
+                "Bạn là chuyên gia viết mô tả YouTube tối ưu CTR cho series truyện/phim dài tập.",
                 "",
-                "Nguyên tắc:",
-                "- Tiêu đề tiếng Việt là trung tâm nội dung.",
-                "- Nếu có summary thì khai thác thêm để tăng chiều sâu.",
-                "- Nếu không có summary thì chỉ dựa vào tiêu đề, không bịa thêm chi tiết.",
-                "- Không thêm chi tiết không tồn tại trong dữ liệu đầu vào.",
-                "- Không dùng emoji, không viết hoa toàn bộ.",
+                "INPUT:",
+                "- Tiêu đề tiếng Việt (bắt buộc)",
+                "- Summary (chỉ dùng làm bối cảnh chung)",
                 "",
-                "Yêu cầu mô tả video (tiếng Việt):",
-                "- Độ dài khoảng 150–300 từ.",
-                "- Đoạn mở đầu (Hook): 2–3 câu đầu phải chứa lại tiêu đề hoặc từ khóa chính, tóm tắt hấp dẫn, chèn từ khóa tự nhiên.",
-                "- Đoạn nội dung chính: tóm lược nội dung phim rõ ràng, nhấn mạnh yếu tố nổi bật (thể loại, cao trào, nhân vật chính...), văn phong tự nhiên, không dài dòng.",
-                "- Từ khóa SEO bổ sung: thêm 1 đoạn ngắn gồm các từ khóa liên quan, 1–2 dòng, không spam.",
-                "- Hashtag cuối mô tả: 5–8 hashtag liên quan, trên 1 dòng riêng (bao gồm tên phim, thể loại, review, tóm tắt, vietsub nếu phù hợp).",
-                "- Ghi chú bản quyền: 1 đoạn ngắn trang trọng, trung tính, nêu rõ video chỉ nhằm chia sẻ/giới thiệu và bản quyền thuộc về tác giả gốc/đơn vị phát hành.",
+                "MỤC TIÊU:",
+                "- Tăng CTR cao.",
+                "- Tạo cảm giác căng thẳng, nguy hiểm, quy mô lớn.",
+                "- Giữ đúng nội dung từ input.",
                 "",
-                "Yêu cầu TAGS:",
-                "- Tạo 20–30 thẻ YouTube, phân tách bằng dấu phẩy.",
-                "- Bao gồm: tên phim, tên tiếng Việt, tên gốc (nếu có), thể loại, từ khóa liên quan, các từ như: review phim, tóm tắt phim, vietsub, anime, hoạt hình Trung Quốc (nếu phù hợp).",
-                "- Không lặp từ quá nhiều, không thêm ký tự đặc biệt.",
+                "NGUYÊN TẮC:",
+                "- Viết cho toàn bộ series, không riêng một tập.",
+                "- Không kể diễn biến cụ thể.",
+                "- Không spoil.",
+                "- Không thêm yếu tố không có trong input.",
                 "",
-                "ĐỊNH DẠNG TRẢ VỀ (BẮT BUỘC):",
+                "PHONG CÁCH:",
+                "- 2 dòng đầu phải thu hút mạnh.",
+                "- Câu ngắn, dứt khoát.",
+                "- 140–180 từ.",
+                "- Tránh văn mẫu dài dòng.",
+                "",
+                "CẤU TRÚC:",
+                "",
                 "MÔ TẢ VIDEO:",
-                "(viết đầy đủ mô tả ở đây)",
+                "🔥 {Tiêu đề}",
+                "",
+                "1) 1–2 câu hook ngắn, mạnh, tạo cảm giác nguy hiểm/căng thẳng.",
+                "2) 1 đoạn mô tả xung đột cốt lõi của series.",
+                "3) 4–6 bullet có icon (🔥 ⚔️ 🧟 🚀 🌌 🧠), mỗi bullet ≤ 10 từ.",
+                "4) 1 CTA ngắn thúc đẩy xem ngay.",
+                "",
+                "📌 Series: {Tiêu đề}",
+                "🎬 Thể loại: {Thể loại}",
+                "",
+                "📢 Lưu ý bản quyền:",
+                "Video được thực hiện với mục đích giới thiệu nội dung.",
+                "Toàn bộ bản quyền hình ảnh và nội dung gốc thuộc về đơn vị phát hành chính thức.",
+                "",
+                "5) 8–12 hashtag viết thường, không dấu.",
                 "",
                 "TAGS:",
-                "(tag1, tag2, tag3, ...)",
+                "- 20–30 tag, phân tách bằng dấu phẩy.",
+                "- Bao gồm tên series, thể loại, từ khóa xem/tomtat/review.",
                 "",
-                "Không thêm giải thích, không thêm nhận xét, không thêm nội dung nào khác ngoài 2 khối trên."
+                "ĐỊNH DẠNG TRẢ VỀ (không giải thích):",
+                "",
+                "MÔ TẢ VIDEO:",
+                "(nội dung + hashtag)",
+                "",
+                "TAGS:",
+                "(tag1, tag2, ...)"
               ].join("\n"),
             },
             {
@@ -190,6 +214,7 @@ export const generateYoutubeSeoMeta = async (
     return raw;
   } catch (error) {
     console.error("generateYoutubeSeoMeta error:", error);
-    return "";
+    // Để UI có thể hiển thị lỗi, không nuốt lỗi ở tầng service
+    throw error;
   }
 };
