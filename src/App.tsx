@@ -553,7 +553,7 @@ export default function App() {
                 <div className="lg:col-span-2 space-y-6">
                   <div className="glass-card rounded-2xl overflow-hidden">
                     <div className="p-6 border-b border-app-border flex justify-between items-center">
-                      <h3 className="font-bold text-app-text-primary">Recent Projects</h3>
+                      <h3 className="font-bold text-app-text-primary">Recent Activities</h3>
                       <button onClick={() => setView("films")} className="text-sm text-app-text-secondary hover:text-app-text-primary flex items-center gap-1">
                         View All <ChevronRight className="w-4 h-4" />
                       </button>
@@ -564,6 +564,9 @@ export default function App() {
                           key={film.id} 
                           onClick={() => openEditModal(film)}
                           className="p-4 hover:bg-app-surface-hover transition-colors flex items-center justify-between group cursor-pointer"
+                          title={`${film.translatedTitle || film.title}${
+                            film.originalTitle ? ` • ${film.originalTitle}` : ""
+                          } • ${STATUS_LABELS[film.status]} • Score: ${film.score || "—"}/10`}
                         >
                           <div className="flex items-center gap-4">
                             <div className="w-12 h-16 bg-app-surface-hover rounded-lg overflow-hidden flex-shrink-0 border border-app-border">
@@ -576,8 +579,17 @@ export default function App() {
                               )}
                             </div>
                             <div>
-                              <h4 className="font-semibold text-sm text-app-text-primary group-hover:text-app-accent transition-colors">{film.title}</h4>
-                              <p className="text-xs text-app-text-secondary mt-1">{film.director || "No director assigned"}</p>
+                              <h4 className="font-semibold text-sm text-app-text-primary group-hover:text-app-accent transition-colors">
+                                {film.translatedTitle || film.title}
+                              </h4>
+                              {film.originalTitle && (
+                                <p className="text-[11px] text-app-text-secondary/80 italic mt-0.5">
+                                  {film.originalTitle}
+                                </p>
+                              )}
+                              <p className="text-[11px] text-app-text-secondary mt-0.5">
+                                Score: <span className="font-mono">{film.score || "—"}/10</span>
+                              </p>
                             </div>
                           </div>
                           <div className="flex items-center gap-4">
@@ -656,7 +668,6 @@ export default function App() {
                       <tr className="bg-app-surface-hover/50 border-b border-app-border">
                         <th className="px-6 py-4 text-xs font-semibold text-app-text-secondary uppercase tracking-wider">Film</th>
                         <th className="px-6 py-4 text-xs font-semibold text-app-text-secondary uppercase tracking-wider">Status</th>
-                        <th className="px-6 py-4 text-xs font-semibold text-app-text-secondary uppercase tracking-wider">Director</th>
                         <th className="px-6 py-4 text-xs font-semibold text-app-text-secondary uppercase tracking-wider">Score</th>
                         <th className="px-6 py-4 text-xs font-semibold text-app-text-secondary uppercase tracking-wider text-right">Actions</th>
                       </tr>
@@ -667,6 +678,9 @@ export default function App() {
                           key={film.id} 
                           onClick={() => openEditModal(film)}
                           className="hover:bg-app-surface-hover/50 transition-colors group cursor-pointer"
+                          title={`${film.translatedTitle || film.title}${
+                            film.originalTitle ? ` • ${film.originalTitle}` : ""
+                          } • ${STATUS_LABELS[film.status]} • Score: ${film.score || "—"}/10`}
                         >
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-4">
@@ -688,9 +702,6 @@ export default function App() {
                           </td>
                           <td className="px-6 py-4">
                             <StatusBadge status={film.status} />
-                          </td>
-                          <td className="px-6 py-4 text-sm text-app-text-secondary">
-                            {film.director || "—"}
                           </td>
                           <td className="px-6 py-4 text-sm font-mono text-app-text-secondary">
                             {film.score || "—"}/10
