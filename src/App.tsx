@@ -1411,10 +1411,10 @@ export default function App() {
                           </div>
                         </div>
 
-                        {/* Edited Poster */}
+                        {/* Final Poster */}
                         <div>
                           <label className="block text-[11px] font-semibold text-app-text-secondary uppercase tracking-wider mb-2">
-                            Edited Poster
+                            Final Poster
                           </label>
                           <div
                             className="relative group aspect-[3/4] max-h-64 bg-app-surface-hover border-2 border-dashed border-app-border rounded-xl overflow-hidden flex flex-col items-center justify-center transition-all hover:border-app-accent/50"
