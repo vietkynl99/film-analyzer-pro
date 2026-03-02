@@ -24,7 +24,7 @@ import {
   Check
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { translateToVietnamese, extractOriginalTitleFromPoster } from "./services/gemini";
+import { translateToVietnamese, extractOriginalTitleFromPoster, generateYoutubeTitles } from "./services/gemini";
 import { STATUS_COLORS, STATUS_LABELS, STATUS_OPTIONS } from "./constants";
 
 // --- Components ---
@@ -72,6 +72,9 @@ export default function App() {
 
   const [isTranslating, setIsTranslating] = useState(false);
   const [isExtractingTitle, setIsExtractingTitle] = useState(false);
+  const [isGeneratingTitles, setIsGeneratingTitles] = useState(false);
+  const [titleSuggestions, setTitleSuggestions] = useState<string[]>([]);
+  const [titleStyle, setTitleStyle] = useState<"clickbait" | "neutral_seo" | "dramatic" | "short">("neutral_seo");
 
   const [isFirebaseConfigured, setIsFirebaseConfigured] = useState(true);
 
@@ -222,6 +225,32 @@ export default function App() {
       setSyncError(error.message || "Failed to translate content");
     } finally {
       setIsTranslating(false);
+    }
+  };
+
+  const handleGenerateYoutubeTitles = async () => {
+    if (!editingFilm || isGeneratingTitles) return;
+
+    const originalTitle = editingFilm.originalTitle?.toString().trim();
+    const cnSummary = editingFilm.summary_original?.toString().trim();
+
+    if (!originalTitle && !cnSummary) {
+      setSyncError("Cần ít nhất Original Title hoặc Summary (Chinese) để tạo tiêu đề YouTube.");
+      return;
+    }
+
+    setIsGeneratingTitles(true);
+    setSyncError(null);
+
+    try {
+      const sourcePieces = [originalTitle, cnSummary].filter(Boolean).join("\n\n");
+      const suggestions = await generateYoutubeTitles(titleStyle, sourcePieces);
+      setTitleSuggestions(suggestions);
+    } catch (error: any) {
+      console.error("Failed to generate YouTube titles", error);
+      setSyncError(error.message || "Failed to generate YouTube titles");
+    } finally {
+      setIsGeneratingTitles(false);
     }
   };
 
@@ -387,7 +416,11 @@ export default function App() {
                     </div>
                     <div className="divide-y divide-app-border">
                       {films.slice(0, 5).map(film => (
-                        <div key={film.id} className="p-4 hover:bg-app-surface-hover transition-colors flex items-center justify-between group">
+                        <div 
+                          key={film.id} 
+                          onClick={() => openEditModal(film)}
+                          className="p-4 hover:bg-app-surface-hover transition-colors flex items-center justify-between group cursor-pointer"
+                        >
                           <div className="flex items-center gap-4">
                             <div className="w-12 h-16 bg-app-surface-hover rounded-lg overflow-hidden flex-shrink-0 border border-app-border">
                               {film.originalPoster ? (
@@ -405,9 +438,6 @@ export default function App() {
                           </div>
                           <div className="flex items-center gap-4">
                             <StatusBadge status={film.status} />
-                            <button onClick={() => openEditModal(film)} className="p-2 text-app-text-secondary hover:text-app-text-primary opacity-0 group-hover:opacity-100 transition-all">
-                              <MoreHorizontal className="w-4 h-4" />
-                            </button>
                           </div>
                         </div>
                       ))}
@@ -489,7 +519,11 @@ export default function App() {
                     </thead>
                     <tbody className="divide-y divide-app-border">
                       {filteredFilms.map(film => (
-                        <tr key={film.id} className="hover:bg-app-surface-hover/50 transition-colors group">
+                        <tr 
+                          key={film.id} 
+                          onClick={() => openEditModal(film)}
+                          className="hover:bg-app-surface-hover/50 transition-colors group cursor-pointer"
+                        >
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-4">
                               <div className="w-10 h-14 bg-app-surface-hover rounded-md overflow-hidden flex-shrink-0 border border-app-border">
@@ -518,13 +552,7 @@ export default function App() {
                             {film.score || "—"}/10
                           </td>
                           <td className="px-6 py-4 text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              <button 
-                                onClick={() => openEditModal(film)}
-                                className="p-2 text-app-text-secondary hover:text-app-text-primary hover:bg-app-surface rounded-lg border border-transparent hover:border-app-border transition-all"
-                              >
-                                <MoreHorizontal className="w-4 h-4" />
-                              </button>
+                            <div className="flex items-center justify-end gap-2" onClick={e => e.stopPropagation()}>
                               <button 
                                 onClick={() => setDeleteTarget(film)}
                                 className="p-2 text-app-text-secondary hover:text-red-400 hover:bg-red-900/20 rounded-lg border border-transparent hover:border-red-900/50 transition-all"
@@ -692,45 +720,70 @@ export default function App() {
                     {/* Titles - Aligned by Language Columns */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <div className="flex items-center justify-between mb-2">
+                        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                           <label className="block text-[11px] font-semibold text-app-text-secondary uppercase tracking-wider">
                             Original Title
                           </label>
-                          <button
-                            type="button"
-                            disabled={isExtractingTitle || !editingFilm?.originalPoster}
-                            onClick={async () => {
-                              if (!editingFilm?.originalPoster || isExtractingTitle) return;
-                              setIsExtractingTitle(true);
-                              setSyncError(null);
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              disabled={isExtractingTitle || !editingFilm?.originalPoster}
+                              onClick={async () => {
+                                if (!editingFilm?.originalPoster || isExtractingTitle) return;
+                                setIsExtractingTitle(true);
+                                setSyncError(null);
                               try {
                                 const title = await extractOriginalTitleFromPoster(editingFilm.originalPoster);
                                 if (!title) return;
-                                setEditingFilm(prev => prev ? { ...prev, originalTitle: title } : prev);
+                                const viTitle = await translateToVietnamese(title);
+                                const combined = viTitle ? `${title} (${viTitle})` : title;
+                                setEditingFilm(prev => (prev ? { ...prev, originalTitle: combined } : prev));
                               } catch (error: any) {
-                                console.error("Failed to extract title from poster", error);
-                                setSyncError(error.message || "Failed to extract title from poster");
-                              } finally {
-                                setIsExtractingTitle(false);
-                              }
-                            }}
-                            className={`ml-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-medium tracking-wide transition-all ${
-                              isExtractingTitle || !editingFilm?.originalPoster
-                                ? "border-app-border text-app-text-secondary/60 bg-app-surface-hover cursor-not-allowed"
-                                : "border-app-accent/50 text-app-accent bg-app-accent/5 hover:bg-app-accent/15"
-                            }`}
-                          >
-                            {isExtractingTitle ? (
-                              <>
-                                <span className="w-3 h-3 border-2 border-app-accent/40 border-t-app-accent rounded-full animate-spin" />
-                                Analyzing...
-                              </>
-                            ) : (
-                              <>
-                                <span>AI lấy từ poster</span>
-                              </>
-                            )}
-                          </button>
+                                  console.error("Failed to extract title from poster", error);
+                                  setSyncError(error.message || "Failed to extract title from poster");
+                                } finally {
+                                  setIsExtractingTitle(false);
+                                }
+                              }}
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-medium tracking-wide transition-all ${
+                                isExtractingTitle || !editingFilm?.originalPoster
+                                  ? "border-app-border text-app-text-secondary/60 bg-app-surface-hover cursor-not-allowed"
+                                  : "border-app-accent/50 text-app-accent bg-app-accent/5 hover:bg-app-accent/15"
+                              }`}
+                            >
+                              {isExtractingTitle ? (
+                                <>
+                                  <span className="w-3 h-3 border-2 border-app-accent/40 border-t-app-accent rounded-full animate-spin" />
+                                  Analyzing...
+                                </>
+                              ) : (
+                                <>
+                                  <span>AI lấy từ poster</span>
+                                </>
+                              )}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isGeneratingTitles || (!editingFilm?.originalTitle && !editingFilm?.summary_original)}
+                              onClick={handleGenerateYoutubeTitles}
+                              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-[10px] font-medium tracking-wide transition-all ${
+                                isGeneratingTitles || (!editingFilm?.originalTitle && !editingFilm?.summary_original)
+                                  ? "border-app-border text-app-text-secondary/60 bg-app-surface-hover cursor-not-allowed"
+                                  : "border-amber-400/60 text-amber-300 bg-amber-500/10 hover:bg-amber-500/20"
+                              }`}
+                            >
+                              {isGeneratingTitles ? (
+                                <>
+                                  <span className="w-3 h-3 border-2 border-amber-400/40 border-t-amber-300 rounded-full animate-spin" />
+                                  Đang tạo...
+                                </>
+                              ) : (
+                                <>
+                                  <span>✨ Tạo tiêu đề YouTube</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
                         </div>
                         <input
                           type="text"
@@ -739,16 +792,38 @@ export default function App() {
                           placeholder="中文剧名"
                           className="w-full px-4 py-3 bg-app-surface-hover border border-app-border rounded-xl focus:outline-none focus:ring-2 focus:ring-app-accent/20 transition-all text-app-text-primary placeholder:text-app-text-secondary/50"
                         />
+                        {/* Style selector */}
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {[
+                            { id: "neutral_seo" as const, label: "Trung tính – SEO" },
+                            { id: "clickbait" as const, label: "Câu view mạnh" },
+                            { id: "dramatic" as const, label: "Kịch tính – giật gân" },
+                            { id: "short" as const, label: "Ngắn gọn < 60 ký tự" },
+                          ].map(option => (
+                            <button
+                              key={option.id}
+                              type="button"
+                              onClick={() => setTitleStyle(option.id)}
+                              className={`px-2.5 py-1 rounded-full text-[10px] font-medium border transition-all ${
+                                titleStyle === option.id
+                                  ? "border-app-accent bg-app-accent/20 text-app-accent"
+                                  : "border-app-border bg-app-surface-hover text-app-text-secondary hover:border-app-accent/40 hover:text-app-text-primary"
+                              }`}
+                            >
+                              {option.label}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                       <div>
                         <label className="block text-[11px] font-semibold text-app-text-secondary uppercase tracking-wider mb-2">
-                          Translated Title
+                          Final Title (YouTube – Vietnamese)
                         </label>
                         <input
                           type="text"
                           value={editingFilm?.translatedTitle || ""}
                           onChange={e => setEditingFilm({ ...editingFilm, translatedTitle: e.target.value, title: e.target.value })}
-                          placeholder="Tên phim tiếng Việt"
+                          placeholder="Tiêu đề YouTube tiếng Việt"
                           className="w-full px-4 py-3 bg-app-surface-hover border border-app-border rounded-xl focus:outline-none focus:ring-2 focus:ring-app-accent/20 transition-all text-app-text-primary placeholder:text-app-text-secondary/50"
                         />
                       </div>
@@ -785,6 +860,49 @@ export default function App() {
                         </select>
                       </div>
                     </div>
+
+                    {/* YouTube Title Suggestions */}
+                    {(isGeneratingTitles || titleSuggestions.length > 0) && (
+                      <div className="glass-card bg-app-surface-hover/40 border border-app-border rounded-2xl p-4 space-y-3">
+                        <div className="space-y-2 max-h-64 overflow-y-auto">
+                          {isGeneratingTitles && titleSuggestions.length === 0 && (
+                            <div className="text-[12px] text-app-text-secondary">
+                              Đang tạo 3–5 tiêu đề đề xuất...
+                            </div>
+                          )}
+                          {titleSuggestions.map((suggestion, index) => (
+                            <div
+                              key={`${suggestion}-${index}`}
+                              className="p-3 rounded-xl border border-app-border bg-app-surface hover:border-app-accent/40 hover:bg-app-surface-hover/60 transition-colors"
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="text-sm font-medium text-app-text-primary">
+                                  {suggestion}
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setEditingFilm(prev =>
+                                      prev
+                                        ? { ...prev, translatedTitle: suggestion, title: suggestion }
+                                        : prev
+                                    )
+                                  }
+                                  className="ml-2 px-2.5 py-1 rounded-full text-[10px] font-medium border border-app-accent text-app-accent bg-app-accent/10 hover:bg-app-accent/20 transition-all whitespace-nowrap"
+                                >
+                                  Chọn làm tiêu đề
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                          {!isGeneratingTitles && titleSuggestions.length === 0 && (
+                            <div className="text-[12px] text-app-text-secondary">
+                              Không tạo được gợi ý nào. Thử kiểm tra lại Original Title hoặc Summary (Chinese).
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Summary - Side by Side, Matched Height */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -8,9 +8,9 @@ export const translateToVietnamese = async (text: string): Promise<string> => {
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: `Translate the following text to Vietnamese. If it's already in Vietnamese, return it as is. Text: "${text}"`,
+      contents: `Translate the following text to Vietnamese. If it's already in Vietnamese, return it as is. Use natural Vietnamese that is easy to understand. You may use common Sino-Vietnamese terms (Hán-Việt) that people frequently see in film titles, but avoid extremely rare, archaic, or overly academic words. Text: "${text}"`,
       config: {
-        systemInstruction: "You are a professional translator. Translate the provided text to natural-sounding Vietnamese. Only return the translated text, nothing else.",
+        systemInstruction: "You are a professional Vietnamese translator. Translate the provided text to clear Vietnamese suitable for film and drama titles. It is OK to use common Sino-Vietnamese words (like 'dị thế', 'huyền bí', 'khám phá'), but avoid very heavy, obscure, or archaic Hán-Việt that normal viewers rarely use. Only return the translated text, nothing else.",
       },
     });
     
@@ -68,5 +68,62 @@ export const extractOriginalTitleFromPoster = async (imageDataUrl: string): Prom
   } catch (error) {
     console.error("Title extraction error:", error);
     return "";
+  }
+};
+
+export const generateYoutubeTitles = async (
+  style: string,
+  sourceText: string
+): Promise<string[]> => {
+  if (!sourceText) return [];
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: [
+        {
+          role: "user",
+          parts: [
+            {
+              text: [
+                "Bạn là chuyên gia tối ưu tiêu đề YouTube cho phim/hoạt hình.",
+                "Dựa trên tiêu đề gốc (bất kỳ ngôn ngữ) và tóm tắt (nếu có), hãy tạo đúng 10 tiêu đề YouTube tiếng Việt tối ưu CTR.",
+                "Ưu tiên dựa trên TIÊU ĐỀ GỐC: hãy Việt hoá tiêu đề gốc và thêm hook/hứa hẹn phù hợp YouTube để tăng CTR, thay vì nghĩ ra hoàn toàn một tiêu đề mới không liên quan.",
+                "Không dịch từng chữ; có thể điều chỉnh, rút gọn, đảo cấu trúc hoặc thêm hook, nhưng phải giữ tinh thần nội dung và không bịa thêm chi tiết.",
+                "Tiêu đề cần gây tò mò, tăng khả năng click, hợp văn phong YouTube Việt, tự nhiên, không lố, không giật tít rẻ tiền; độ dài lý tưởng khoảng 50–70 ký tự.",
+                "",
+                `Phong cách ưu tiên hiện tại: ${style || "trung tính – SEO"}.`,
+                "",
+                "Quy tắc định dạng:",
+                "- Chỉ trả về danh sách 10 tiêu đề, mỗi tiêu đề trên một dòng riêng.",
+                "- Không viết toàn chữ in hoa.",
+                "- Không lạm dụng dấu chấm than.",
+                "- Không giải thích, không phân tích, không thêm nhận xét hay nội dung nào khác."
+              ].join(" "),
+            },
+            {
+              text: `\n\nNội dung:\n${sourceText}`,
+            },
+          ],
+        },
+      ],
+    });
+
+    const raw = response.text?.trim() || "";
+    if (!raw) return [];
+
+    const lines = raw
+      .split("\n")
+      .map(l => l.trim())
+      .filter(Boolean);
+
+    // Bỏ số thứ tự nếu có, lấy tối đa 10 dòng
+    return lines
+      .map(line => line.replace(/^\d+[\).\-\s]+/, "").trim())
+      .filter(Boolean)
+      .slice(0, 10);
+  } catch (error) {
+    console.error("generateYoutubeTitles error:", error);
+    return [];
   }
 };
