@@ -63,6 +63,7 @@ export default function App() {
   const [editingFilm, setEditingFilm] = useState<Partial<Film> | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>("All");
   const [deleteTarget, setDeleteTarget] = useState<Film | null>(null);
+  const [searchQuery, setSearchQuery] = useState<string>("");
   
   // New states for Settings and Sync
   const [connectionStatus, setConnectionStatus] = useState<"connected" | "disconnected" | "connecting">("connecting");
@@ -415,9 +416,14 @@ export default function App() {
     setIsModalOpen(true);
   };
 
-  const filteredFilms = filterStatus === "All" 
-    ? films 
-    : films.filter(f => f.status === filterStatus);
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+
+  const filteredFilms = films.filter(f => {
+    if (filterStatus !== "All" && f.status !== filterStatus) return false;
+    if (!normalizedSearch) return true;
+    const haystack = `${f.translatedTitle || ""} ${f.title || ""} ${f.originalTitle || ""}`.toLowerCase();
+    return haystack.includes(normalizedSearch);
+  });
 
   // Stats
   const totalFilms = films.length;
@@ -513,9 +519,61 @@ export default function App() {
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-app-text-secondary" />
               <input 
                 type="text" 
-                placeholder="Search projects..." 
+                placeholder="Search films by title..." 
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
                 className="pl-10 pr-4 py-2 bg-app-surface-hover border border-app-border rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-app-accent/20 w-64 text-app-text-primary placeholder:text-app-text-secondary/50"
               />
+              {normalizedSearch && (
+                <div className="absolute mt-2 left-0 w-80 max-h-80 overflow-y-auto bg-app-surface border border-app-border rounded-2xl shadow-xl z-20">
+                  {filteredFilms.slice(0, 8).length > 0 ? (
+                    filteredFilms.slice(0, 8).map(film => (
+                      <button
+                        key={`search-${film.id}`}
+                        type="button"
+                        onClick={() => {
+                          openEditModal(film);
+                          setSearchQuery("");
+                        }}
+                        className="w-full text-left px-3 py-2 flex items-center gap-3 hover:bg-app-surface-hover transition-colors"
+                      >
+                        <div className="w-8 h-10 bg-app-surface-hover rounded-md overflow-hidden flex-shrink-0 border border-app-border">
+                          {film.originalPoster ? (
+                            <img
+                              src={film.originalPoster}
+                              alt={film.title}
+                              className="w-full h-full object-cover"
+                              referrerPolicy="no-referrer"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-app-text-secondary/30">
+                              <FilmIcon className="w-4 h-4" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-semibold text-app-text-primary truncate">
+                            {film.translatedTitle || film.title}
+                          </div>
+                          {film.originalTitle && (
+                            <div className="text-[11px] text-app-text-secondary/80 italic truncate">
+                              {film.originalTitle}
+                            </div>
+                          )}
+                          <div className="text-[11px] text-app-text-secondary mt-0.5">
+                            Score: <span className="font-mono">{film.score || "—"}/10</span>
+                          </div>
+                        </div>
+                        <StatusBadge status={film.status} />
+                      </button>
+                    ))
+                  ) : (
+                    <div className="px-3 py-2 text-[12px] text-app-text-secondary">
+                      Không tìm thấy phim phù hợp.
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             <button 
               onClick={() => openEditModal()}
@@ -566,7 +624,7 @@ export default function App() {
                       </button>
                     </div>
                     <div className="divide-y divide-app-border">
-                      {films.slice(0, 5).map(film => (
+                      {filteredFilms.slice(0, 5).map(film => (
                         <div 
                           key={film.id} 
                           onClick={() => openEditModal(film)}
