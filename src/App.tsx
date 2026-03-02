@@ -1022,7 +1022,7 @@ export default function App() {
                               </>
                             ) : (
                               <>
-                                <span>✨ Tạo tiêu đề YouTube</span>
+                                <span>✨ Tạo tiêu đề</span>
                               </>
                             )}
                           </button>
