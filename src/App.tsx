@@ -542,15 +542,22 @@ export default function App() {
             <div className="space-y-8">
               {/* Stats Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <StatCard title="Total Films" value={totalFilms} icon={FilmIcon} trend="+12%" />
-                <StatCard title="In Production" value={inProduction} icon={TrendingUp} />
+                <StatCard title="Total Films" value={totalFilms} icon={FilmIcon} />
+                <StatCard title="In Analysis" value={inProduction} icon={TrendingUp} />
                 <StatCard title="Released" value={released} icon={CheckCircle2} />
-                <StatCard title="Avg. Score" value={(films.reduce((acc, f) => acc + (f.score || 0), 0) / (films.length || 1)).toFixed(1)} icon={Clock} />
+                <StatCard
+                  title="Avg. Score"
+                  value={(
+                    films.reduce((acc, f) => acc + (f.score || 0), 0) /
+                    (films.length || 1)
+                  ).toFixed(1)}
+                  icon={Clock}
+                />
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Recent Activity */}
-                <div className="lg:col-span-2 space-y-6">
+                <div className="lg:col-span-3 space-y-6">
                   <div className="glass-card rounded-2xl overflow-hidden">
                     <div className="p-6 border-b border-app-border flex justify-between items-center">
                       <h3 className="font-bold text-app-text-primary">Recent Activities</h3>
@@ -603,39 +610,6 @@ export default function App() {
                         </div>
                       )}
                     </div>
-                  </div>
-                </div>
-
-                {/* Quality Control */}
-                <div className="space-y-6">
-                  <div className="glass-card rounded-2xl p-6">
-                    <h3 className="font-bold mb-4 flex items-center gap-2 text-app-text-primary">
-                      <AlertCircle className="w-4 h-4 text-amber-500" />
-                      Quality Control
-                    </h3>
-                    <div className="space-y-4">
-                      <div className="flex justify-between items-center p-3 bg-amber-900/20 rounded-xl border border-amber-800/50">
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 bg-app-surface rounded-lg">
-                            <FilmIcon className="w-4 h-4 text-amber-500" />
-                          </div>
-                          <span className="text-sm font-medium text-amber-200">Missing Posters</span>
-                        </div>
-                        <span className="text-lg font-bold text-amber-500">{missingPoster}</span>
-                      </div>
-                      <div className="flex justify-between items-center p-3 bg-app-surface-hover rounded-xl border border-app-border">
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 bg-app-surface rounded-lg">
-                            <Clock className="w-4 h-4 text-app-text-secondary" />
-                          </div>
-                          <span className="text-sm font-medium text-app-text-primary">Low Detail</span>
-                        </div>
-                        <span className="text-lg font-bold text-app-text-secondary">{missingSynopsis}</span>
-                      </div>
-                    </div>
-                    <button className="w-full mt-6 py-2 text-sm font-medium text-app-text-secondary hover:text-app-text-primary border border-app-border rounded-xl hover:bg-app-surface-hover transition-all">
-                      Run Full Audit
-                    </button>
                   </div>
                 </div>
               </div>
