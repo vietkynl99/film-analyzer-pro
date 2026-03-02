@@ -127,3 +127,69 @@ export const generateYoutubeTitles = async (
     return [];
   }
 };
+
+export const generateYoutubeSeoMeta = async (
+  vietnameseTitle: string,
+  summary: string
+): Promise<string> => {
+  if (!vietnameseTitle) return "";
+
+  const trimmedSummary = summary?.trim() || "";
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: [
+        {
+          role: "user",
+          parts: [
+            {
+              text: [
+                "Bạn là chuyên gia tối ưu SEO YouTube cho nội dung tóm tắt phim/hoạt hình.",
+                "Dựa trên TIÊU ĐỀ TIẾNG VIỆT (bắt buộc) và TÓM TẮT (nếu có), hãy tạo mô tả video chuẩn SEO YouTube và bộ thẻ (tags) tối ưu tìm kiếm.",
+                "",
+                "Nguyên tắc:",
+                "- Tiêu đề tiếng Việt là trung tâm nội dung.",
+                "- Nếu có summary thì khai thác thêm để tăng chiều sâu.",
+                "- Nếu không có summary thì chỉ dựa vào tiêu đề, không bịa thêm chi tiết.",
+                "- Không thêm chi tiết không tồn tại trong dữ liệu đầu vào.",
+                "- Không dùng emoji, không viết hoa toàn bộ.",
+                "",
+                "Yêu cầu mô tả video (tiếng Việt):",
+                "- Độ dài khoảng 150–300 từ.",
+                "- Đoạn mở đầu (Hook): 2–3 câu đầu phải chứa lại tiêu đề hoặc từ khóa chính, tóm tắt hấp dẫn, chèn từ khóa tự nhiên.",
+                "- Đoạn nội dung chính: tóm lược nội dung phim rõ ràng, nhấn mạnh yếu tố nổi bật (thể loại, cao trào, nhân vật chính...), văn phong tự nhiên, không dài dòng.",
+                "- Từ khóa SEO bổ sung: thêm 1 đoạn ngắn gồm các từ khóa liên quan, 1–2 dòng, không spam.",
+                "- Hashtag cuối mô tả: 5–8 hashtag liên quan, trên 1 dòng riêng (bao gồm tên phim, thể loại, review, tóm tắt, vietsub nếu phù hợp).",
+                "- Ghi chú bản quyền: 1 đoạn ngắn trang trọng, trung tính, nêu rõ video chỉ nhằm chia sẻ/giới thiệu và bản quyền thuộc về tác giả gốc/đơn vị phát hành.",
+                "",
+                "Yêu cầu TAGS:",
+                "- Tạo 20–30 thẻ YouTube, phân tách bằng dấu phẩy.",
+                "- Bao gồm: tên phim, tên tiếng Việt, tên gốc (nếu có), thể loại, từ khóa liên quan, các từ như: review phim, tóm tắt phim, vietsub, anime, hoạt hình Trung Quốc (nếu phù hợp).",
+                "- Không lặp từ quá nhiều, không thêm ký tự đặc biệt.",
+                "",
+                "ĐỊNH DẠNG TRẢ VỀ (BẮT BUỘC):",
+                "MÔ TẢ VIDEO:",
+                "(viết đầy đủ mô tả ở đây)",
+                "",
+                "TAGS:",
+                "(tag1, tag2, tag3, ...)",
+                "",
+                "Không thêm giải thích, không thêm nhận xét, không thêm nội dung nào khác ngoài 2 khối trên."
+              ].join("\n"),
+            },
+            {
+              text: `\n\nTIÊU ĐỀ TIẾNG VIỆT:\n${vietnameseTitle}\n\nTÓM TẮT (NẾU CÓ):\n${trimmedSummary || "[Không có summary]"}`,
+            },
+          ],
+        },
+      ],
+    });
+
+    const raw = response.text?.trim() || "";
+    return raw;
+  } catch (error) {
+    console.error("generateYoutubeSeoMeta error:", error);
+    return "";
+  }
+};

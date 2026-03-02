@@ -27,6 +27,8 @@ export interface Film {
   status: ProductionStatus;
   summary_original: string | null;
   summary_vi: string;
+  youtubeDescription?: string;
+  youtubeTags?: string;
   originalPoster?: string;
   editedPoster?: string;
   createdAt: string;

@@ -24,7 +24,7 @@ import {
   Check
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { translateToVietnamese, extractOriginalTitleFromPoster, generateYoutubeTitles } from "./services/gemini";
+import { translateToVietnamese, extractOriginalTitleFromPoster, generateYoutubeTitles, generateYoutubeSeoMeta } from "./services/gemini";
 import { STATUS_COLORS, STATUS_LABELS, STATUS_OPTIONS } from "./constants";
 
 // --- Components ---
@@ -75,6 +75,8 @@ export default function App() {
   const [isGeneratingTitles, setIsGeneratingTitles] = useState(false);
   const [titleSuggestions, setTitleSuggestions] = useState<string[]>([]);
   const [titleStyle, setTitleStyle] = useState<"clickbait" | "neutral_seo" | "dramatic" | "short">("neutral_seo");
+
+  const [isGeneratingSeo, setIsGeneratingSeo] = useState(false);
 
   const [isFirebaseConfigured, setIsFirebaseConfigured] = useState(true);
 
@@ -251,6 +253,48 @@ export default function App() {
       setSyncError(error.message || "Failed to generate YouTube titles");
     } finally {
       setIsGeneratingTitles(false);
+    }
+  };
+
+  const handleGenerateYoutubeSeo = async () => {
+    if (!editingFilm || isGeneratingSeo) return;
+
+    const vietnameseTitle = editingFilm.translatedTitle?.toString().trim();
+    const summaryText = (editingFilm.summary_vi || editingFilm.summary_original || "").toString().trim();
+
+    if (!vietnameseTitle) {
+      setSyncError("Cần tiêu đề tiếng Việt (Final Title) để tạo mô tả YouTube.");
+      return;
+    }
+
+    setIsGeneratingSeo(true);
+    setSyncError(null);
+
+    try {
+      const result = await generateYoutubeSeoMeta(vietnameseTitle, summaryText);
+      if (result) {
+        const parts = result.split(/TAGS:/i);
+        const descriptionBlock = parts[0] || "";
+        const tagsBlock = parts[1] || "";
+
+        const youtubeDescription = descriptionBlock.replace(/MÔ TẢ VIDEO:\s*/i, "").trim();
+        const youtubeTags = tagsBlock.trim();
+
+        setEditingFilm(prev =>
+          prev
+            ? {
+                ...prev,
+                youtubeDescription,
+                youtubeTags,
+              }
+            : prev
+        );
+      }
+    } catch (error: any) {
+      console.error("Failed to generate YouTube SEO meta", error);
+      setSyncError(error.message || "Failed to generate YouTube SEO meta");
+    } finally {
+      setIsGeneratingSeo(false);
     }
   };
 
@@ -819,13 +863,38 @@ export default function App() {
                         <label className="block text-[11px] font-semibold text-app-text-secondary uppercase tracking-wider mb-2">
                           Final Title (YouTube – Vietnamese)
                         </label>
-                        <input
-                          type="text"
-                          value={editingFilm?.translatedTitle || ""}
-                          onChange={e => setEditingFilm({ ...editingFilm, translatedTitle: e.target.value, title: e.target.value })}
-                          placeholder="Tiêu đề YouTube tiếng Việt"
-                          className="w-full px-4 py-3 bg-app-surface-hover border border-app-border rounded-xl focus:outline-none focus:ring-2 focus:ring-app-accent/20 transition-all text-app-text-primary placeholder:text-app-text-secondary/50"
-                        />
+                        <div className="flex flex-col gap-2">
+                          <input
+                            type="text"
+                            value={editingFilm?.translatedTitle || ""}
+                            onChange={e => setEditingFilm({ ...editingFilm, translatedTitle: e.target.value, title: e.target.value })}
+                            placeholder="Tiêu đề YouTube tiếng Việt"
+                            className="w-full px-4 py-3 bg-app-surface-hover border border-app-border rounded-xl focus:outline-none focus:ring-2 focus:ring-app-accent/20 transition-all text-app-text-primary placeholder:text-app-text-secondary/50"
+                          />
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              disabled={isGeneratingSeo || !editingFilm?.translatedTitle}
+                              onClick={handleGenerateYoutubeSeo}
+                              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-[10px] font-medium tracking-wide transition-all ${
+                                isGeneratingSeo || !editingFilm?.translatedTitle
+                                  ? "border-app-border text-app-text-secondary/60 bg-app-surface-hover cursor-not-allowed"
+                                  : "border-emerald-400/60 text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20"
+                              }`}
+                            >
+                              {isGeneratingSeo ? (
+                                <>
+                                  <span className="w-3 h-3 border-2 border-emerald-400/40 border-t-emerald-300 rounded-full animate-spin" />
+                                  Đang tạo mô tả...
+                                </>
+                              ) : (
+                                <>
+                                  <span>Tạo mô tả & tags YouTube</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     </div>
 
@@ -860,6 +929,55 @@ export default function App() {
                         </select>
                       </div>
                     </div>
+
+                    {/* YouTube SEO Description & Tags */}
+                    {(isGeneratingSeo || editingFilm?.youtubeDescription || editingFilm?.youtubeTags) && (
+                      <div className="glass-card bg-app-surface-hover/40 border border-app-border rounded-2xl p-4 space-y-3">
+                        {isGeneratingSeo && !editingFilm?.youtubeDescription && !editingFilm?.youtubeTags && (
+                          <div className="text-[12px] text-app-text-secondary">
+                            Đang tạo mô tả và tags YouTube...
+                          </div>
+                        )}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-[11px] font-semibold text-app-text-secondary uppercase tracking-wider mb-2">
+                              Mô tả video (SEO YouTube)
+                            </label>
+                            <textarea
+                              rows={10}
+                              value={editingFilm?.youtubeDescription || ""}
+                              onChange={e =>
+                                setEditingFilm(prev =>
+                                  prev ? { ...prev, youtubeDescription: e.target.value } : prev
+                                )
+                              }
+                              placeholder="MÔ TẢ VIDEO:
+...
+
+TAGS:
+..."
+                              className="w-full px-3 py-2 bg-app-surface border border-app-border rounded-xl text-xs text-app-text-primary whitespace-pre-wrap resize-y min-h-[160px]"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-semibold text-app-text-secondary uppercase tracking-wider mb-2">
+                              Tags YouTube
+                            </label>
+                            <textarea
+                              rows={10}
+                              value={editingFilm?.youtubeTags || ""}
+                              onChange={e =>
+                                setEditingFilm(prev =>
+                                  prev ? { ...prev, youtubeTags: e.target.value } : prev
+                                )
+                              }
+                              placeholder="tag1, tag2, tag3, ..."
+                              className="w-full px-3 py-2 bg-app-surface border border-app-border rounded-xl text-xs text-app-text-primary whitespace-pre-wrap resize-y min-h-[160px]"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     {/* YouTube Title Suggestions */}
                     {(isGeneratingTitles || titleSuggestions.length > 0) && (

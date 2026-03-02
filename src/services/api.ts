@@ -93,6 +93,8 @@ export const api = {
         productionStatus: film.status || ProductionStatus.IN_ANALYSIS,
         summary_original: film.summary_original || null,
         summary_vi: film.summary_vi || "",
+        youtubeDescription: film.youtubeDescription || "",
+        youtubeTags: film.youtubeTags || "",
         originalPosterUrl: film.originalPoster || null,
         editedPosterUrl: film.editedPoster || null,
         createdAt: new Date().toISOString(),
