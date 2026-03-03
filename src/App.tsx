@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Film, ProductionStatus } from "./types";
 import { api } from "./services/api";
 import { 
@@ -61,9 +61,14 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingFilm, setEditingFilm] = useState<Partial<Film> | null>(null);
-  const [filterStatus, setFilterStatus] = useState<string>("All");
+  const [filterStatuses, setFilterStatuses] = useState<string[]>([]);
+  const [filterCollections, setFilterCollections] = useState<string[]>([]);
+  const [isFilterCollectionsOpen, setIsFilterCollectionsOpen] = useState(false);
+  const [scoreFilterMode, setScoreFilterMode] = useState<"none" | "gte" | "lte">("none");
+  const [scoreFilterValue, setScoreFilterValue] = useState<string>("");
   const [deleteTarget, setDeleteTarget] = useState<Film | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [currentPage, setCurrentPage] = useState<number>(1);
   
   // New states for Settings and Sync
   const [connectionStatus, setConnectionStatus] = useState<"connected" | "disconnected" | "connecting">("connecting");
@@ -93,6 +98,11 @@ export default function App() {
     selected: string[];
     newName: string;
   } | null>(null);
+  // Input tạm cho phần chỉnh sửa collections trong Edit Film modal
+  const [editingCollectionsInput, setEditingCollectionsInput] = useState<string>("");
+  const filterCollectionsRef = useRef<HTMLDivElement | null>(null);
+  const statusFilterRef = useRef<HTMLDivElement | null>(null);
+  const [isStatusFilterOpen, setIsStatusFilterOpen] = useState(false);
 
   const [isFirebaseConfigured, setIsFirebaseConfigured] = useState(true);
 
@@ -429,18 +439,80 @@ export default function App() {
       summary_vi: "",
       youtubeDescription: "",
       youtubeTags: "",
+      collections: [],
     });
+    setEditingCollectionsInput("");
     setIsModalOpen(true);
   };
 
   const normalizedSearch = searchQuery.trim().toLowerCase();
 
   const filteredFilms = films.filter(f => {
-    if (filterStatus !== "All" && f.status !== filterStatus) return false;
+    if (filterStatuses.length > 0 && !filterStatuses.includes(f.status as any)) return false;
+
+    if (filterCollections.length > 0) {
+      const cols = Array.isArray(f.collections) ? f.collections : [];
+      const hasAny = filterCollections.some(c => cols.includes(c));
+      if (!hasAny) return false;
+    }
+
+    if (scoreFilterMode !== "none" && scoreFilterValue.trim() !== "") {
+      const parsed = Number(scoreFilterValue);
+      if (!Number.isNaN(parsed)) {
+        const filmScore = typeof f.score === "number" ? f.score : 0;
+        if (scoreFilterMode === "gte" && filmScore < parsed) return false;
+        if (scoreFilterMode === "lte" && filmScore > parsed) return false;
+      }
+    }
+
     if (!normalizedSearch) return true;
     const haystack = `${f.translatedTitle || ""} ${f.title || ""} ${f.originalTitle || ""}`.toLowerCase();
     return haystack.includes(normalizedSearch);
   });
+
+  const FILMS_PER_PAGE = 10;
+  const totalPages = Math.max(1, Math.ceil(filteredFilms.length / FILMS_PER_PAGE));
+  const paginatedFilms = filteredFilms.slice(
+    (currentPage - 1) * FILMS_PER_PAGE,
+    currentPage * FILMS_PER_PAGE
+  );
+
+  // Reset hoặc clamp lại currentPage khi filter/search thay đổi hoặc số lượng films thay đổi
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterStatuses, filterCollections, scoreFilterMode, scoreFilterValue, normalizedSearch]);
+
+  useEffect(() => {
+    const newTotalPages = Math.max(1, Math.ceil(filteredFilms.length / FILMS_PER_PAGE));
+    if (currentPage > newTotalPages) {
+      setCurrentPage(newTotalPages);
+    }
+  }, [filteredFilms.length, currentPage]);
+
+  // Đóng dropdown filters khi click ra ngoài
+  useEffect(() => {
+    if (!isFilterCollectionsOpen && !isStatusFilterOpen) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      const targetNode = event.target as Node;
+
+      if (
+        filterCollectionsRef.current &&
+        !filterCollectionsRef.current.contains(targetNode)
+      ) {
+        setIsFilterCollectionsOpen(false);
+      }
+
+      if (statusFilterRef.current && !statusFilterRef.current.contains(targetNode)) {
+        setIsStatusFilterOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isFilterCollectionsOpen, isStatusFilterOpen]);
 
   // Stats
   const totalFilms = films.length;
@@ -690,22 +762,216 @@ export default function App() {
               </div>
             </div>
           ) : view === "films" ? (
-            <div className="space-y-6">
-              {/* Filters */}
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div className="flex items-center gap-2">
-                  <Filter className="w-4 h-4 text-slate-400" />
-                  <div className="flex gap-1">
-                    {["All", ...STATUS_OPTIONS].map(status => (
-                      <button 
-                        key={status}
-                        onClick={() => setFilterStatus(status)}
-                        className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${filterStatus === status ? "bg-slate-900 text-white" : "bg-white text-slate-600 border border-slate-200 hover:border-slate-300"}`}
+            <div className="space-y-4">
+              {/* Filters + Pagination */}
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div className="flex flex-wrap items-center gap-3">
+                    {/* Status filter (dropdown) */}
+                    <div
+                      className="relative flex items-center gap-2 text-xs"
+                      ref={statusFilterRef}
+                    >
+                      <Filter className="w-4 h-4 text-slate-400" />
+                      <button
+                        type="button"
+                        onClick={() => setIsStatusFilterOpen(open => !open)}
+                        className="px-3 py-1.5 bg-app-surface-hover border border-app-border rounded-full text-[11px] text-app-text-primary flex items-center gap-2 hover:border-app-accent/60 hover:text-app-accent"
                       >
-                        {status === "All" ? "All" : STATUS_LABELS[status as ProductionStatus]}
+                        <span className="truncate max-w-[120px]">
+                          {filterStatuses.length === 0
+                            ? "All status"
+                            : `${filterStatuses.length} status`}
+                        </span>
+                        <ChevronRight
+                          className={`w-3 h-3 transition-transform ${
+                            isStatusFilterOpen ? "rotate-90" : "rotate-0"
+                          }`}
+                        />
                       </button>
-                    ))}
+
+                      {isStatusFilterOpen && (
+                        <div className="absolute z-30 top-full mt-2 left-0 w-48 bg-app-surface border border-app-border rounded-2xl shadow-xl p-3">
+                          <div className="mb-2 flex items-center justify-between">
+                            <span className="text-[11px] font-semibold text-app-text-primary">
+                              Status
+                            </span>
+                            {filterStatuses.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setFilterStatuses([]);
+                                  setIsStatusFilterOpen(false);
+                                }}
+                                className="text-[11px] text-app-text-secondary hover:text-app-accent"
+                              >
+                                Clear
+                              </button>
+                            )}
+                          </div>
+                          <div className="space-y-1 text-[11px] text-app-text-primary">
+                            {STATUS_OPTIONS.map(status => (
+                              <button
+                                key={`status-filter-${status}`}
+                                type="button"
+                                onClick={() => {
+                                  setFilterStatuses(prev => {
+                                    if (prev.includes(status)) {
+                                      return prev.filter(s => s !== status);
+                                    }
+                                    return [...prev, status];
+                                  });
+                                }}
+                                className={`w-full text-left px-2 py-1 rounded-lg hover:bg-app-surface-hover ${
+                                  filterStatuses.includes(status) ? "bg-app-surface-hover" : ""
+                                }`}
+                              >
+                                {STATUS_LABELS[status as ProductionStatus]}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Collections filter (multi-select dropdown) */}
+                    <div
+                      className="relative flex items-center gap-2 text-xs"
+                      ref={filterCollectionsRef}
+                    >
+                      <span className="text-app-text-secondary">Collections</span>
+                      <button
+                        type="button"
+                        onClick={() => setIsFilterCollectionsOpen(open => !open)}
+                        className="px-3 py-1.5 bg-app-surface-hover border border-app-border rounded-full text-[11px] text-app-text-primary flex items-center gap-2 hover:border-app-accent/60 hover:text-app-accent"
+                      >
+                        <span className="truncate max-w-[120px]">
+                          {filterCollections.length === 0
+                            ? "All"
+                            : `${filterCollections.length} selected`}
+                        </span>
+                        <ChevronRight
+                          className={`w-3 h-3 transition-transform ${
+                            isFilterCollectionsOpen ? "rotate-90" : "rotate-0"
+                          }`}
+                        />
+                      </button>
+
+                      {isFilterCollectionsOpen && (
+                        <div
+                          className="absolute z-30 top-full mt-2 right-0 w-56 bg-app-surface border border-app-border rounded-2xl shadow-xl p-3"
+                          onClick={e => e.stopPropagation()}
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-[11px] font-semibold text-app-text-primary">
+                              Collections
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setFilterCollections([])}
+                              className="text-[11px] text-app-text-secondary hover:text-app-accent"
+                            >
+                              Clear
+                            </button>
+                          </div>
+                          <div className="max-h-48 overflow-y-auto space-y-1">
+                            {allCollections.length === 0 && (
+                              <div className="text-[11px] text-app-text-secondary">
+                                Chưa có collection nào.
+                              </div>
+                            )}
+                            {allCollections.map(name => {
+                              const checked = filterCollections.includes(name);
+                              return (
+                                <label
+                                  key={`filter-collection-${name}`}
+                                  className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-app-surface-hover cursor-pointer text-[11px] text-app-text-primary"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={e => {
+                                      const isChecked = e.target.checked;
+                                      setFilterCollections(prev => {
+                                        if (isChecked) {
+                                          if (prev.includes(name)) return prev;
+                                          return [...prev, name];
+                                        }
+                                        return prev.filter(c => c !== name);
+                                      });
+                                    }}
+                                    className="w-3 h-3 rounded border-app-border bg-app-surface-hover text-app-accent"
+                                  />
+                                  <span className="truncate">{name}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Score filter */}
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="text-app-text-secondary whitespace-nowrap">Score</span>
+                      <select
+                        value={scoreFilterMode}
+                        onChange={e => setScoreFilterMode(e.target.value as "none" | "gte" | "lte")}
+                        className="px-2 py-1.5 bg-app-surface-hover border border-app-border rounded-full text-[11px] text-app-text-primary focus:outline-none focus:ring-1 focus:ring-app-accent/60"
+                      >
+                        <option value="none">All</option>
+                        <option value="gte">≥</option>
+                        <option value="lte">≤</option>
+                      </select>
+                      <input
+                        type="number"
+                        min={0}
+                        max={10}
+                        step={0.5}
+                        value={scoreFilterValue}
+                        onChange={e => setScoreFilterValue(e.target.value)}
+                        className="w-16 px-2 py-1.5 bg-app-surface-hover border border-app-border rounded-full text-[11px] text-app-text-primary text-center focus:outline-none focus:ring-1 focus:ring-app-accent/60"
+                        placeholder=""
+                      />
+                    </div>
                   </div>
+
+                  {filteredFilms.length > 0 && (
+                    <div className="flex items-center gap-3 text-xs text-app-text-secondary">
+                      <span>
+                        Page{" "}
+                        <span className="font-semibold text-app-text-primary">{currentPage}</span>{" "}
+                        of{" "}
+                        <span className="font-semibold text-app-text-primary">{totalPages}</span>
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          disabled={currentPage === 1}
+                          onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                          className={`px-3 py-1.5 rounded-full border text-[11px] font-medium transition-colors ${
+                            currentPage === 1
+                              ? "border-app-border text-app-text-secondary/50 cursor-not-allowed bg-app-surface"
+                              : "border-app-border text-app-text-primary bg-app-surface-hover hover:border-app-accent/60 hover:text-app-accent"
+                          }`}
+                        >
+                          Previous
+                        </button>
+                        <button
+                          type="button"
+                          disabled={currentPage === totalPages}
+                          onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                          className={`px-3 py-1.5 rounded-full border text-[11px] font-medium transition-colors ${
+                            currentPage === totalPages
+                              ? "border-app-border text-app-text-secondary/50 cursor-not-allowed bg-app-surface"
+                              : "border-app-border text-app-text-primary bg-app-surface-hover hover:border-app-accent/60 hover:text-app-accent"
+                          }`}
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -715,6 +981,9 @@ export default function App() {
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="bg-app-surface-hover/50 border-b border-app-border">
+                        <th className="px-4 py-4 text-xs font-semibold text-app-text-secondary uppercase tracking-wider w-[52px]">
+                          #
+                        </th>
                         <th className="px-4 py-4 text-xs font-semibold text-app-text-secondary uppercase tracking-wider w-[72px]">
                           Poster
                         </th>
@@ -730,16 +999,23 @@ export default function App() {
                         <th className="px-4 py-4 text-xs font-semibold text-app-text-secondary uppercase tracking-wider w-[220px]">
                           Collections
                         </th>
+                        <th className="px-4 py-4 text-xs font-semibold text-app-text-secondary uppercase tracking-wider w-[120px]">
+                          Updated
+                        </th>
                         <th className="px-4 py-4 text-xs font-semibold text-app-text-secondary uppercase tracking-wider text-right w-[96px]">
                           Actions
                         </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-app-border">
-                      {filteredFilms.map(film => {
+                      {paginatedFilms.map((film, index) => {
                         const filmCollections = (film.collections && Array.isArray(film.collections)) ? film.collections : [];
                         const visibleCollections = filmCollections.slice(0, 2);
                         const hiddenCount = filmCollections.length - visibleCollections.length;
+                        const updatedSource = (film as any).updatedAt || (film as any).createdAt || null;
+                        const updatedLabel = updatedSource
+                          ? new Date(updatedSource).toLocaleDateString()
+                          : "—";
 
                         return (
                           <tr 
@@ -750,6 +1026,11 @@ export default function App() {
                               film.originalTitle ? ` • ${film.originalTitle}` : ""
                             } • ${STATUS_LABELS[film.status]} • Score: ${film.score || "—"}/10`}
                           >
+                            {/* Index in current page */}
+                            <td className="px-4 py-4 text-xs text-app-text-secondary align-middle">
+                              {((currentPage - 1) * FILMS_PER_PAGE + index + 1).toString().padStart(2, "0")}
+                            </td>
+
                             {/* Poster */}
                             <td className="px-4 py-4">
                               <div className="w-11 h-16 bg-app-surface-hover rounded-md overflow-hidden flex-shrink-0 border border-app-border shadow-sm shadow-black/40">
@@ -1043,6 +1324,11 @@ export default function App() {
                                   </div>
                                 )}
                               </div>
+                            </td>
+
+                            {/* Updated */}
+                            <td className="px-4 py-4 align-middle text-xs text-app-text-secondary whitespace-nowrap">
+                              {updatedLabel}
                             </td>
 
                             {/* Actions */}
@@ -1384,6 +1670,90 @@ export default function App() {
                             </option>
                           ))}
                         </select>
+                      </div>
+                    </div>
+
+                    {/* Collections editor inside Edit Film modal */}
+                    <div className="mt-4 space-y-2">
+                      <label className="block text-xs font-bold text-app-text-secondary uppercase tracking-wider">
+                        Collections
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        {allCollections.length === 0 && !((editingFilm?.collections || []).length) && (
+                          <span className="text-[11px] text-app-text-secondary">
+                            Chưa có collection nào. Tạo mới bên dưới.
+                          </span>
+                        )}
+                        {allCollections.map(name => {
+                          const current =
+                            editingFilm?.collections && Array.isArray(editingFilm.collections)
+                              ? editingFilm.collections
+                              : [];
+                          const isSelected = current.includes(name);
+                          return (
+                            <button
+                              key={`edit-modal-collection-${name}`}
+                              type="button"
+                              onClick={() => {
+                                setEditingFilm(prev => {
+                                  if (!prev) return prev;
+                                  const existing =
+                                    prev.collections && Array.isArray(prev.collections)
+                                      ? prev.collections
+                                      : [];
+                                  if (isSelected) {
+                                    return {
+                                      ...prev,
+                                      collections: existing.filter(c => c !== name),
+                                    };
+                                  }
+                                  return {
+                                    ...prev,
+                                    collections: [...existing, name],
+                                  };
+                                });
+                              }}
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[11px] transition-colors ${
+                                isSelected
+                                  ? "bg-app-accent/20 border-app-accent text-app-accent"
+                                  : "bg-app-surface-hover border-app-border text-app-text-secondary hover:border-app-accent/50 hover:text-app-accent"
+                              }`}
+                            >
+                              <span className="truncate max-w-[120px]">{name}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[11px] text-app-text-secondary">
+                          + Danh sách mới
+                        </span>
+                        <input
+                          type="text"
+                          placeholder="Tên collection mới..."
+                          value={editingCollectionsInput}
+                          onChange={e => setEditingCollectionsInput(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key !== "Enter") return;
+                            e.preventDefault();
+                            const name = editingCollectionsInput.trim();
+                            if (!name) return;
+                            setEditingFilm(prev => {
+                              if (!prev) return prev;
+                              const existing =
+                                prev.collections && Array.isArray(prev.collections)
+                                  ? prev.collections
+                                  : [];
+                              if (existing.includes(name)) return prev;
+                              return {
+                                ...prev,
+                                collections: [...existing, name],
+                              };
+                            });
+                            setEditingCollectionsInput("");
+                          }}
+                          className="flex-1 min-w-[160px] px-3 py-2 rounded-lg bg-app-surface-hover border border-app-border text-[11px] text-app-text-primary placeholder:text-app-text-secondary/60 focus:outline-none focus:ring-1 focus:ring-app-accent/60"
+                        />
                       </div>
                     </div>
 
