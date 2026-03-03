@@ -64,11 +64,11 @@ export default function App() {
   const [filterStatuses, setFilterStatuses] = useState<string[]>([]);
   const [filterCollections, setFilterCollections] = useState<string[]>([]);
   const [isFilterCollectionsOpen, setIsFilterCollectionsOpen] = useState(false);
-  const [scoreFilterMode, setScoreFilterMode] = useState<"none" | "gte" | "lte">("none");
-  const [scoreFilterValue, setScoreFilterValue] = useState<string>("");
   const [deleteTarget, setDeleteTarget] = useState<Film | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [currentPage, setCurrentPage] = useState<number>(1);
+  const [sortField, setSortField] = useState<"updated" | "score">("updated");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   
   // New states for Settings and Sync
   const [connectionStatus, setConnectionStatus] = useState<"connected" | "disconnected" | "connecting">("connecting");
@@ -456,23 +456,35 @@ export default function App() {
       if (!hasAny) return false;
     }
 
-    if (scoreFilterMode !== "none" && scoreFilterValue.trim() !== "") {
-      const parsed = Number(scoreFilterValue);
-      if (!Number.isNaN(parsed)) {
-        const filmScore = typeof f.score === "number" ? f.score : 0;
-        if (scoreFilterMode === "gte" && filmScore < parsed) return false;
-        if (scoreFilterMode === "lte" && filmScore > parsed) return false;
-      }
-    }
-
     if (!normalizedSearch) return true;
     const haystack = `${f.translatedTitle || ""} ${f.title || ""} ${f.originalTitle || ""}`.toLowerCase();
     return haystack.includes(normalizedSearch);
   });
 
   const FILMS_PER_PAGE = 10;
-  const totalPages = Math.max(1, Math.ceil(filteredFilms.length / FILMS_PER_PAGE));
-  const paginatedFilms = filteredFilms.slice(
+
+  const paginatedBase = [...filteredFilms].sort((a, b) => {
+    let aVal = 0;
+    let bVal = 0;
+
+    if (sortField === "updated") {
+      const aTime = (a as any).updatedAt || (a as any).createdAt || "";
+      const bTime = (b as any).updatedAt || (b as any).createdAt || "";
+      aVal = aTime ? new Date(aTime).getTime() || 0 : 0;
+      bVal = bTime ? new Date(bTime).getTime() || 0 : 0;
+    } else if (sortField === "score") {
+      aVal = typeof a.score === "number" ? a.score : 0;
+      bVal = typeof b.score === "number" ? b.score : 0;
+    }
+
+    if (sortDirection === "asc") {
+      return aVal - bVal;
+    }
+    return bVal - aVal;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(paginatedBase.length / FILMS_PER_PAGE));
+  const paginatedFilms = paginatedBase.slice(
     (currentPage - 1) * FILMS_PER_PAGE,
     currentPage * FILMS_PER_PAGE
   );
@@ -480,14 +492,14 @@ export default function App() {
   // Reset hoặc clamp lại currentPage khi filter/search thay đổi hoặc số lượng films thay đổi
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterStatuses, filterCollections, scoreFilterMode, scoreFilterValue, normalizedSearch]);
+  }, [filterStatuses, filterCollections, normalizedSearch, sortField, sortDirection]);
 
   useEffect(() => {
-    const newTotalPages = Math.max(1, Math.ceil(filteredFilms.length / FILMS_PER_PAGE));
+    const newTotalPages = Math.max(1, Math.ceil(paginatedBase.length / FILMS_PER_PAGE));
     if (currentPage > newTotalPages) {
       setCurrentPage(newTotalPages);
     }
-  }, [filteredFilms.length, currentPage]);
+  }, [paginatedBase.length, currentPage]);
 
   // Đóng dropdown filters khi click ra ngoài
   useEffect(() => {
@@ -791,7 +803,7 @@ export default function App() {
                       </button>
 
                       {isStatusFilterOpen && (
-                        <div className="absolute z-30 top-full mt-2 left-0 w-48 bg-app-surface border border-app-border rounded-2xl shadow-xl p-3">
+                        <div className="absolute z-30 top-full mt-2 left-0 w-56 bg-app-surface border border-app-border rounded-2xl shadow-xl p-3">
                           <div className="mb-2 flex items-center justify-between">
                             <span className="text-[11px] font-semibold text-app-text-primary">
                               Status
@@ -809,26 +821,35 @@ export default function App() {
                               </button>
                             )}
                           </div>
-                          <div className="space-y-1 text-[11px] text-app-text-primary">
-                            {STATUS_OPTIONS.map(status => (
-                              <button
-                                key={`status-filter-${status}`}
-                                type="button"
-                                onClick={() => {
-                                  setFilterStatuses(prev => {
-                                    if (prev.includes(status)) {
-                                      return prev.filter(s => s !== status);
-                                    }
-                                    return [...prev, status];
-                                  });
-                                }}
-                                className={`w-full text-left px-2 py-1 rounded-lg hover:bg-app-surface-hover ${
-                                  filterStatuses.includes(status) ? "bg-app-surface-hover" : ""
-                                }`}
-                              >
-                                {STATUS_LABELS[status as ProductionStatus]}
-                              </button>
-                            ))}
+                          <div className="space-y-1 text-[11px] text-app-text-primary max-h-48 overflow-y-auto">
+                            {STATUS_OPTIONS.map(status => {
+                              const checked = filterStatuses.includes(status);
+                              return (
+                                <label
+                                  key={`status-filter-${status}`}
+                                  className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-app-surface-hover cursor-pointer"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={e => {
+                                      const isChecked = e.target.checked;
+                                      setFilterStatuses(prev => {
+                                        if (isChecked) {
+                                          if (prev.includes(status)) return prev;
+                                          return [...prev, status];
+                                        }
+                                        return prev.filter(s => s !== status);
+                                      });
+                                    }}
+                                    className="w-3 h-3 rounded border-app-border bg-app-surface-hover text-app-accent"
+                                  />
+                                  <span className="truncate">
+                                    {STATUS_LABELS[status as ProductionStatus]}
+                                  </span>
+                                </label>
+                              );
+                            })}
                           </div>
                         </div>
                       )}
@@ -868,7 +889,10 @@ export default function App() {
                             </span>
                             <button
                               type="button"
-                              onClick={() => setFilterCollections([])}
+                              onClick={() => {
+                                setFilterCollections([]);
+                                setIsFilterCollectionsOpen(false);
+                              }}
                               className="text-[11px] text-app-text-secondary hover:text-app-accent"
                             >
                               Clear
@@ -911,33 +935,35 @@ export default function App() {
                       )}
                     </div>
 
-                    {/* Score filter */}
-                    <div className="flex items-center gap-2 text-xs">
-                      <span className="text-app-text-secondary whitespace-nowrap">Score</span>
-                      <select
-                        value={scoreFilterMode}
-                        onChange={e => setScoreFilterMode(e.target.value as "none" | "gte" | "lte")}
-                        className="px-2 py-1.5 bg-app-surface-hover border border-app-border rounded-full text-[11px] text-app-text-primary focus:outline-none focus:ring-1 focus:ring-app-accent/60"
-                      >
-                        <option value="none">All</option>
-                        <option value="gte">≥</option>
-                        <option value="lte">≤</option>
-                      </select>
-                      <input
-                        type="number"
-                        min={0}
-                        max={10}
-                        step={0.5}
-                        value={scoreFilterValue}
-                        onChange={e => setScoreFilterValue(e.target.value)}
-                        className="w-16 px-2 py-1.5 bg-app-surface-hover border border-app-border rounded-full text-[11px] text-app-text-primary text-center focus:outline-none focus:ring-1 focus:ring-app-accent/60"
-                        placeholder=""
-                      />
-                    </div>
+                    {/* (Score filter removed) */}
                   </div>
 
                   {filteredFilms.length > 0 && (
-                    <div className="flex items-center gap-3 text-xs text-app-text-secondary">
+                    <div className="flex items-center gap-4 text-xs text-app-text-secondary">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] text-app-text-secondary whitespace-nowrap">
+                          Sort
+                        </span>
+                        <select
+                          value={sortField}
+                          onChange={e =>
+                            setSortField(e.target.value as "updated" | "score")
+                          }
+                          className="px-2 py-1.5 bg-app-surface-hover border border-app-border rounded-full text-[11px] text-app-text-primary focus:outline-none focus:ring-1 focus:ring-app-accent/60"
+                        >
+                          <option value="updated">Updated time</option>
+                          <option value="score">Score</option>
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setSortDirection(prev => (prev === "asc" ? "desc" : "asc"))
+                          }
+                          className="px-2 py-1.5 bg-app-surface-hover border border-app-border rounded-full text-[11px] text-app-text-primary hover:border-app-accent/60 hover:text-app-accent"
+                        >
+                          {sortDirection === "asc" ? "↑" : "↓"}
+                        </button>
+                      </div>
                       <span>
                         Page{" "}
                         <span className="font-semibold text-app-text-primary">{currentPage}</span>{" "}
