@@ -89,6 +89,16 @@ export default function App() {
 
   const [isFirebaseConfigured, setIsFirebaseConfigured] = useState(true);
 
+  const allCollections = React.useMemo(
+    () =>
+      Array.from(
+        new Set(
+          films.flatMap(f => (f.collections && Array.isArray(f.collections) ? f.collections : []))
+        )
+      ).sort((a, b) => String(a).localeCompare(String(b))),
+    [films]
+  );
+
   // Auto-hide global error toast after 3s
   useEffect(() => {
     if (!appError) return;
@@ -698,58 +708,178 @@ export default function App() {
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="bg-app-surface-hover/50 border-b border-app-border">
-                        <th className="px-6 py-4 text-xs font-semibold text-app-text-secondary uppercase tracking-wider">Film</th>
-                        <th className="px-6 py-4 text-xs font-semibold text-app-text-secondary uppercase tracking-wider">Status</th>
-                        <th className="px-6 py-4 text-xs font-semibold text-app-text-secondary uppercase tracking-wider">Score</th>
-                        <th className="px-6 py-4 text-xs font-semibold text-app-text-secondary uppercase tracking-wider text-right">Actions</th>
+                        <th className="px-4 py-4 text-xs font-semibold text-app-text-secondary uppercase tracking-wider w-[72px]">
+                          Poster
+                        </th>
+                        <th className="px-4 py-4 text-xs font-semibold text-app-text-secondary uppercase tracking-wider">
+                          Title
+                        </th>
+                        <th className="px-4 py-4 text-xs font-semibold text-app-text-secondary uppercase tracking-wider text-center w-[96px]">
+                          Score
+                        </th>
+                        <th className="px-4 py-4 text-xs font-semibold text-app-text-secondary uppercase tracking-wider w-[140px]">
+                          Status
+                        </th>
+                        <th className="px-4 py-4 text-xs font-semibold text-app-text-secondary uppercase tracking-wider w-[220px]">
+                          Collections
+                        </th>
+                        <th className="px-4 py-4 text-xs font-semibold text-app-text-secondary uppercase tracking-wider text-right w-[96px]">
+                          Actions
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-app-border">
-                      {filteredFilms.map(film => (
-                        <tr 
-                          key={film.id} 
-                          onClick={() => openEditModal(film)}
-                          className="hover:bg-app-surface-hover/50 transition-colors group cursor-pointer"
-                          title={`${film.translatedTitle || film.title}${
-                            film.originalTitle ? ` • ${film.originalTitle}` : ""
-                          } • ${STATUS_LABELS[film.status]} • Score: ${film.score || "—"}/10`}
-                        >
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-4">
-                              <div className="w-10 h-14 bg-app-surface-hover rounded-md overflow-hidden flex-shrink-0 border border-app-border">
+                      {filteredFilms.map(film => {
+                        const filmCollections = (film.collections && Array.isArray(film.collections)) ? film.collections : [];
+                        const visibleCollections = filmCollections.slice(0, 2);
+                        const hiddenCount = filmCollections.length - visibleCollections.length;
+
+                        return (
+                          <tr 
+                            key={film.id} 
+                            onClick={() => openEditModal(film)}
+                            className="hover:bg-app-surface-hover/50 transition-colors group cursor-pointer"
+                            title={`${film.translatedTitle || film.title}${
+                              film.originalTitle ? ` • ${film.originalTitle}` : ""
+                            } • ${STATUS_LABELS[film.status]} • Score: ${film.score || "—"}/10`}
+                          >
+                            {/* Poster */}
+                            <td className="px-4 py-4">
+                              <div className="w-11 h-16 bg-app-surface-hover rounded-md overflow-hidden flex-shrink-0 border border-app-border shadow-sm shadow-black/40">
                                 {film.originalPoster ? (
-                                  <img src={film.originalPoster} alt={film.title} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                  <img
+                                    src={film.originalPoster}
+                                    alt={film.title}
+                                    className="w-full h-full object-cover"
+                                    referrerPolicy="no-referrer"
+                                  />
                                 ) : (
                                   <div className="w-full h-full flex items-center justify-center text-app-text-secondary/30">
                                     <FilmIcon className="w-5 h-5" />
                                   </div>
                                 )}
                               </div>
-                              <div>
-                                <div className="font-semibold text-app-text-primary">{film.translatedTitle || film.title}</div>
-                                <div className="text-[10px] text-app-text-secondary opacity-70 italic">{film.originalTitle}</div>
-                                <div className="text-[10px] text-app-text-secondary mt-0.5">{film.genre || "Uncategorized"}</div>
+                            </td>
+
+                            {/* Title */}
+                            <td className="px-4 py-4 align-top">
+                              <div className="space-y-1">
+                                <div className="font-semibold text-app-text-primary line-clamp-1">
+                                  {film.translatedTitle || film.title}
+                                </div>
+                                {film.originalTitle && (
+                                  <div className="text-[11px] text-app-text-secondary/80 italic line-clamp-1">
+                                    {film.originalTitle}
+                                  </div>
+                                )}
+                                <div className="flex flex-wrap gap-2 text-[11px] text-app-text-secondary/80">
+                                  <span>{film.genre || "Uncategorized"}</span>
+                                  {typeof film.score === "number" && (
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-app-surface-hover border border-app-border font-mono text-[10px]">
+                                      Score: {film.score}/10
+                                    </span>
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <StatusBadge status={film.status} />
-                          </td>
-                          <td className="px-6 py-4 text-sm font-mono text-app-text-secondary">
-                            {film.score || "—"}/10
-                          </td>
-                          <td className="px-6 py-4 text-right">
-                            <div className="flex items-center justify-end gap-2" onClick={e => e.stopPropagation()}>
-                              <button 
-                                onClick={() => setDeleteTarget(film)}
-                                className="p-2 text-app-text-secondary hover:text-red-400 hover:bg-red-900/20 rounded-lg border border-transparent hover:border-red-900/50 transition-all"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                            </td>
+
+                            {/* Score */}
+                            <td className="px-4 py-4 text-center align-middle">
+                              <span className="inline-flex items-center justify-center px-2 py-1 rounded-full bg-app-surface-hover border border-app-border font-mono text-xs text-app-text-primary">
+                                {film.score || "—"}/10
+                              </span>
+                            </td>
+
+                            {/* Status */}
+                            <td className="px-4 py-4 align-middle">
+                              <StatusBadge status={film.status} />
+                            </td>
+
+                            {/* Collections */}
+                            <td className="px-4 py-4 align-middle">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                {visibleCollections.map(collection => (
+                                  <span
+                                    key={collection}
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-app-surface-hover border border-app-border text-[11px] text-app-text-secondary"
+                                    onClick={e => e.stopPropagation()}
+                                  >
+                                    <span className="max-w-[120px] truncate">{collection}</span>
+                                    <button
+                                      type="button"
+                                      onClick={e => {
+                                        e.stopPropagation();
+                                        const next = filmCollections.filter(c => c !== collection);
+                                        api.updateFilm(film.id, { collections: next });
+                                      }}
+                                      className="ml-0.5 text-[10px] text-app-text-secondary/70 hover:text-red-400"
+                                    >
+                                      ×
+                                    </button>
+                                  </span>
+                                ))}
+
+                                {hiddenCount > 0 && (
+                                  <div
+                                    className="relative group"
+                                    onClick={e => e.stopPropagation()}
+                                  >
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-app-surface-hover border border-dashed border-app-border text-[11px] text-app-text-secondary cursor-default">
+                                      +{hiddenCount}
+                                    </span>
+                                    <div className="absolute z-20 mt-2 right-0 hidden group-hover:block">
+                                      <div className="min-w-[180px] max-w-xs bg-app-surface border border-app-border rounded-xl shadow-xl p-3">
+                                        <p className="text-[11px] font-semibold text-app-text-secondary mb-1">
+                                          Collections
+                                        </p>
+                                        <ul className="space-y-1 max-h-40 overflow-y-auto text-[11px] text-app-text-secondary">
+                                          {filmCollections.map(c => (
+                                            <li key={`full-${film.id}-${c}`} className="truncate">
+                                              {c}
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+
+                                <button
+                                  type="button"
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    const current = new Set(
+                                      filmCollections && Array.isArray(filmCollections) ? filmCollections : []
+                                    );
+                                    const next =
+                                      allCollections.length > 0
+                                        ? Array.from(current).concat(
+                                            allCollections.filter(c => !current.has(c)).slice(0, 1)
+                                          )
+                                        : [];
+                                    api.updateFilm(film.id, { collections: next });
+                                  }}
+                                  className="inline-flex items-center px-2 py-0.5 rounded-full border border-dashed border-app-border text-[11px] text-app-text-secondary hover:border-app-accent/50 hover:text-app-accent hover:bg-app-surface-hover transition-colors"
+                                >
+                                  + Add
+                                </button>
+                              </div>
+                            </td>
+
+                            {/* Actions */}
+                            <td className="px-4 py-4 text-right align-middle">
+                              <div className="flex items-center justify-end gap-2" onClick={e => e.stopPropagation()}>
+                                <button 
+                                  onClick={() => setDeleteTarget(film)}
+                                  className="p-2 text-app-text-secondary hover:text-red-400 hover:bg-red-900/20 rounded-lg border border-transparent hover:border-red-900/50 transition-all"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                   {filteredFilms.length === 0 && (
