@@ -87,6 +87,13 @@ export default function App() {
   // UI state: field that was recently copied (for copy icon -> check icon)
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
+  // Inline picker "Lưu vào..." cho Collections (chọn nhiều + tạo mới)
+  const [collectionPicker, setCollectionPicker] = useState<{
+    filmId: string;
+    selected: string[];
+    newName: string;
+  } | null>(null);
+
   const [isFirebaseConfigured, setIsFirebaseConfigured] = useState(true);
 
   const allCollections = React.useMemo(
@@ -445,7 +452,7 @@ export default function App() {
   return (
     <div className="min-h-screen flex bg-app-bg text-app-text-primary">
       {/* Sidebar */}
-      <aside className="w-64 border-r border-app-border bg-app-surface flex flex-col sticky top-0 h-screen">
+      <aside className="w-64 border-r border-app-border bg-app-surface flex flex-col">
         <div className="p-6 border-b border-app-border">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-app-accent rounded-lg flex items-center justify-center">
@@ -703,8 +710,8 @@ export default function App() {
               </div>
 
               {/* Table */}
-              <div className="glass-card rounded-2xl overflow-hidden">
-                <div className="overflow-x-auto">
+              <div className="glass-card rounded-2xl">
+                <div>
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="bg-app-surface-hover/50 border-b border-app-border">
@@ -772,14 +779,6 @@ export default function App() {
                                     {film.originalTitle}
                                   </div>
                                 )}
-                                <div className="flex flex-wrap gap-2 text-[11px] text-app-text-secondary/80">
-                                  <span>{film.genre || "Uncategorized"}</span>
-                                  {typeof film.score === "number" && (
-                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-app-surface-hover border border-app-border font-mono text-[10px]">
-                                      Score: {film.score}/10
-                                    </span>
-                                  )}
-                                </div>
                               </div>
                             </td>
 
@@ -797,7 +796,7 @@ export default function App() {
 
                             {/* Collections */}
                             <td className="px-4 py-4 align-middle">
-                              <div className="flex items-center gap-2 flex-wrap">
+                              <div className="relative flex items-center gap-2 flex-wrap">
                                 {visibleCollections.map(collection => (
                                   <span
                                     key={collection}
@@ -848,21 +847,201 @@ export default function App() {
                                   type="button"
                                   onClick={e => {
                                     e.stopPropagation();
-                                    const current = new Set(
-                                      filmCollections && Array.isArray(filmCollections) ? filmCollections : []
-                                    );
-                                    const next =
-                                      allCollections.length > 0
-                                        ? Array.from(current).concat(
-                                            allCollections.filter(c => !current.has(c)).slice(0, 1)
-                                          )
+                                    // Nếu đang mở cho phim này thì toggle đóng lại
+                                    if (collectionPicker?.filmId === film.id) {
+                                      setCollectionPicker(null);
+                                      return;
+                                    }
+
+                                    const current =
+                                      filmCollections && Array.isArray(filmCollections)
+                                        ? filmCollections
                                         : [];
-                                    api.updateFilm(film.id, { collections: next });
+
+                                    setCollectionPicker({
+                                      filmId: film.id,
+                                      selected: current,
+                                      newName: "",
+                                    });
                                   }}
                                   className="inline-flex items-center px-2 py-0.5 rounded-full border border-dashed border-app-border text-[11px] text-app-text-secondary hover:border-app-accent/50 hover:text-app-accent hover:bg-app-surface-hover transition-colors"
                                 >
                                   + Add
                                 </button>
+
+                                {collectionPicker?.filmId === film.id && (
+                                  <div
+                                    className="absolute z-30 top-full mt-2 left-0 w-64 bg-app-surface border border-app-border rounded-2xl shadow-xl p-3"
+                                    onClick={e => e.stopPropagation()}
+                                  >
+                                    <div className="mb-2">
+                                      <p className="text-xs font-semibold text-app-text-primary">
+                                        Lưu vào...
+                                      </p>
+                                    </div>
+
+                                    <div className="max-h-40 overflow-y-auto space-y-1 mb-3">
+                                      {allCollections.map(name => {
+                                        const isChecked = collectionPicker.selected.includes(name);
+                                        return (
+                                          <label
+                                            key={`${film.id}-${name}`}
+                                            className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-app-surface-hover cursor-pointer text-[11px] text-app-text-primary"
+                                          >
+                                            <input
+                                              type="checkbox"
+                                              checked={isChecked}
+                                              onChange={e => {
+                                                const checked = e.target.checked;
+                                                setCollectionPicker(prev => {
+                                                  if (!prev || prev.filmId !== film.id) return prev;
+                                                  if (checked) {
+                                                    if (prev.selected.includes(name)) return prev;
+                                                    return {
+                                                      ...prev,
+                                                      selected: [...prev.selected, name],
+                                                    };
+                                                  }
+                                                  return {
+                                                    ...prev,
+                                                    selected: prev.selected.filter(c => c !== name),
+                                                  };
+                                                });
+                                              }}
+                                              className="w-3 h-3 rounded border-app-border bg-app-surface-hover text-app-accent"
+                                            />
+                                            <span className="truncate">{name}</span>
+                                          </label>
+                                        );
+                                      })}
+                                    </div>
+
+                                    <div className="space-y-2">
+                                      <div className="space-y-1">
+                                        <span className="text-[11px] text-app-text-secondary">
+                                          + Danh sách mới
+                                        </span>
+                                        <input
+                                          type="text"
+                                          placeholder="Tên collection mới..."
+                                          value={collectionPicker.newName}
+                                          onChange={e =>
+                                            setCollectionPicker(prev =>
+                                              prev && prev.filmId === film.id
+                                                ? { ...prev, newName: e.target.value }
+                                                : prev
+                                            )
+                                          }
+                                          onKeyDown={async e => {
+                                            if (e.key !== "Enter") return;
+                                            e.preventDefault();
+                                            const picker = collectionPicker;
+                                            if (!picker || picker.filmId !== film.id) return;
+
+                                            const trimmedNew = picker.newName.trim();
+
+                                            const baseSet = new Set(
+                                              filmCollections && Array.isArray(filmCollections)
+                                                ? filmCollections
+                                                : []
+                                            );
+
+                                            picker.selected.forEach(c => baseSet.add(c));
+                                            if (trimmedNew) baseSet.add(trimmedNew);
+
+                                            const next = Array.from(baseSet);
+
+                                            const originalSet = new Set(filmCollections);
+                                            const noNewName = !trimmedNew;
+                                            const sameSize = baseSet.size === originalSet.size;
+                                            const sameItems =
+                                              sameSize &&
+                                              Array.from(baseSet).every(c => originalSet.has(c));
+
+                                            if (noNewName && sameItems) {
+                                              setCollectionPicker(null);
+                                              return;
+                                            }
+
+                                            try {
+                                              await api.updateFilm(film.id, { collections: next });
+                                            } catch (error: any) {
+                                              console.error("Failed to update collections (enter)", error);
+                                              setAppError(
+                                                error?.message ||
+                                                  "Cập nhật collection cho phim thất bại. Vui lòng thử lại."
+                                              );
+                                            } finally {
+                                              setCollectionPicker(null);
+                                            }
+                                          }}
+                                          className="w-full px-3 py-2 rounded-lg bg-app-surface-hover border border-app-border text-[11px] text-app-text-primary placeholder:text-app-text-secondary/60 focus:outline-none focus:ring-1 focus:ring-app-accent/60"
+                                        />
+                                      </div>
+                                      <div className="flex justify-end gap-2 pt-1">
+                                        <button
+                                          type="button"
+                                          onClick={e => {
+                                            e.stopPropagation();
+                                            setCollectionPicker(null);
+                                          }}
+                                          className="px-2 py-0.5 rounded-full border border-app-border text-[11px] text-app-text-secondary hover:bg-app-surface-hover transition-colors"
+                                        >
+                                          Hủy
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={async e => {
+                                            e.stopPropagation();
+                                            const picker = collectionPicker;
+                                            if (!picker || picker.filmId !== film.id) return;
+
+                                            const trimmedNew = picker.newName.trim();
+
+                                            const baseSet = new Set(
+                                              filmCollections && Array.isArray(filmCollections)
+                                                ? filmCollections
+                                                : []
+                                            );
+
+                                            picker.selected.forEach(c => baseSet.add(c));
+                                            if (trimmedNew) baseSet.add(trimmedNew);
+
+                                            const next = Array.from(baseSet);
+
+                                            // Nếu không có thay đổi gì thì chỉ đóng popup
+                                            const originalSet = new Set(filmCollections);
+                                            const noNewName = !trimmedNew;
+                                            const sameSize = baseSet.size === originalSet.size;
+                                            const sameItems =
+                                              sameSize &&
+                                              Array.from(baseSet).every(c => originalSet.has(c));
+
+                                            if (noNewName && sameItems) {
+                                              setCollectionPicker(null);
+                                              return;
+                                            }
+
+                                            try {
+                                              await api.updateFilm(film.id, { collections: next });
+                                            } catch (error: any) {
+                                              console.error("Failed to update collections", error);
+                                              setAppError(
+                                                error?.message ||
+                                                  "Cập nhật collection cho phim thất bại. Vui lòng thử lại."
+                                              );
+                                            } finally {
+                                              setCollectionPicker(null);
+                                            }
+                                          }}
+                                          className="px-3 py-0.5 rounded-full bg-app-accent text-white text-[11px] font-medium hover:opacity-90 transition-opacity"
+                                        >
+                                          Lưu
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             </td>
 
