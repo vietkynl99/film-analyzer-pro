@@ -195,7 +195,7 @@ export const generateYoutubeSeoMeta = async (
                 "🎬 Thể loại: {Thể loại}",
                 "",
                 "📢 Lưu ý bản quyền:",
-                "Video được thực hiện với mục đích giới thiệu nội dung.",
+                "Video này được thực hiện với mục đích vietsub, chia sẻ.",
                 "Toàn bộ bản quyền hình ảnh và nội dung gốc thuộc về đơn vị phát hành chính thức.",
                 "",
                 "5) 8–12 hashtag viết thường, không dấu.",
