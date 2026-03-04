@@ -1,11 +1,19 @@
 import { GoogleGenAI } from "@google/genai";
+import { getStoredGeminiApiKey } from "../lib/appConfig";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
+const getAiClient = () => {
+  const apiKey = getStoredGeminiApiKey();
+  if (!apiKey) {
+    throw new Error("Gemini API key is missing. Please add it in Settings.");
+  }
+  return new GoogleGenAI({ apiKey });
+};
 
 export const translateToVietnamese = async (text: string): Promise<string> => {
   if (!text) return "";
   
   try {
+    const ai = getAiClient();
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: `Translate the following text to Vietnamese. If it's already in Vietnamese, return it as is. Use natural Vietnamese that is easy to understand. You may use common Sino-Vietnamese terms (Hán-Việt) that people frequently see in film titles, but avoid extremely rare, archaic, or overly academic words. Text: "${text}"`,
@@ -30,6 +38,7 @@ export const extractOriginalTitleFromPoster = async (imageDataUrl: string): Prom
   if (!imageDataUrl) return "";
 
   try {
+    const ai = getAiClient();
     const match = imageDataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
     if (!match) {
       console.warn("Invalid image data URL format for poster.");
@@ -79,6 +88,7 @@ export const generateYoutubeTitles = async (
   if (!sourceText) return [];
 
   try {
+    const ai = getAiClient();
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: [
@@ -139,6 +149,7 @@ export const generateYoutubeSeoMeta = async (
   const trimmedSummary = summary?.trim() || "";
 
   try {
+    const ai = getAiClient();
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: [

@@ -22,11 +22,22 @@ import {
   WifiOff,
   RefreshCw,
   Check,
-  Copy
+  Copy,
+  Eye,
+  EyeOff
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { translateToVietnamese, extractOriginalTitleFromPoster, generateYoutubeTitles, generateYoutubeSeoMeta } from "./services/gemini";
 import { STATUS_COLORS, STATUS_LABELS, STATUS_OPTIONS } from "./constants";
+import {
+  getStoredFirebaseConfig,
+  getStoredFirebaseConfigRaw,
+  getStoredGeminiApiKey,
+  isFirebaseConfigComplete,
+  parseFirebaseConfigInput,
+  setStoredFirebaseConfigRaw,
+  setStoredGeminiApiKey,
+} from "./lib/appConfig";
 
 // --- Components ---
 
@@ -52,6 +63,17 @@ const StatusBadge = ({ status }: { status: ProductionStatus }) => (
     {STATUS_LABELS[status]}
   </span>
 );
+
+const FIREBASE_CONFIG_SAMPLE = `{
+  "apiKey": "",
+  "authDomain": "",
+  "databaseURL": "",
+  "projectId": "",
+  "storageBucket": "",
+  "messagingSenderId": "",
+  "appId": "",
+  "measurementId": ""
+}`;
 
 // --- Main App ---
 
@@ -105,6 +127,15 @@ export default function App() {
   const [isStatusFilterOpen, setIsStatusFilterOpen] = useState(false);
 
   const [isFirebaseConfigured, setIsFirebaseConfigured] = useState(true);
+  const [settingsGeminiApiKey, setSettingsGeminiApiKey] = useState<string>("");
+  const [showGeminiApiKey, setShowGeminiApiKey] = useState(false);
+  const [settingsFirebaseConfig, setSettingsFirebaseConfig] = useState<string>("");
+  const [settingsMessage, setSettingsMessage] = useState<string | null>(null);
+  const [firebaseConfigVersion, setFirebaseConfigVersion] = useState(0);
+  const settingsHydratedRef = useRef(false);
+  const lastSavedGeminiApiKeyRef = useRef("");
+  const lastSavedFirebaseRawRef = useRef("");
+  const firebaseConfigTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const allCollections = React.useMemo(
     () =>
@@ -140,37 +171,59 @@ export default function App() {
   }, [copiedField]);
 
   useEffect(() => {
-    // Check if critical Firebase keys are present and not placeholders
-    const isPlaceholder = (val: string | undefined) => !val || val.includes("YOUR_") || val === "undefined";
-    
-    const isConfigured = !(
-      isPlaceholder(import.meta.env.VITE_FIREBASE_API_KEY) ||
-      isPlaceholder(import.meta.env.VITE_FIREBASE_PROJECT_ID) ||
-      isPlaceholder(import.meta.env.VITE_FIREBASE_APP_ID)
-    );
+    if (!settingsMessage) return;
+    const timer = setTimeout(() => setSettingsMessage(null), 2500);
+    return () => clearTimeout(timer);
+  }, [settingsMessage]);
+
+  useEffect(() => {
+    const savedGeminiApiKey = getStoredGeminiApiKey();
+    const savedFirebaseRaw = getStoredFirebaseConfigRaw();
+
+    setSettingsGeminiApiKey(savedGeminiApiKey);
+    setSettingsFirebaseConfig(savedFirebaseRaw || FIREBASE_CONFIG_SAMPLE);
+
+    lastSavedGeminiApiKeyRef.current = savedGeminiApiKey;
+    lastSavedFirebaseRawRef.current = savedFirebaseRaw;
+    settingsHydratedRef.current = true;
+  }, []);
+
+  useEffect(() => {
+    const firebaseConfig = getStoredFirebaseConfig();
+    const isConfigured = isFirebaseConfigComplete(firebaseConfig);
     setIsFirebaseConfigured(isConfigured);
-    
+
+    if (!isConfigured) {
+      setConnectionStatus("disconnected");
+      setIsLoading(false);
+      setFilms([]);
+      return;
+    }
+
     setIsLoading(true);
     setConnectionStatus("connecting");
-    
-    const unsubscribe = api.subscribeToFilms((data) => {
-      console.log("Received films update from Firestore:", data.length);
-      setFilms(data);
-      setIsLoading(false);
-      setConnectionStatus("connected");
-      setLastSyncTime(new Date().toLocaleTimeString());
-    }, (error) => {
-      console.error("Failed to subscribe to films:", error);
-      setConnectionStatus("disconnected");
-      setSyncError("Connection failed: " + error.message);
-      setAppError("Không kết nối được Firebase. Vui lòng kiểm tra cấu hình và mạng rồi thử lại.");
-      setIsLoading(false);
-    });
+
+    const unsubscribe = api.subscribeToFilms(
+      (data) => {
+        console.log("Received films update from Firestore:", data.length);
+        setFilms(data);
+        setIsLoading(false);
+        setConnectionStatus("connected");
+        setLastSyncTime(new Date().toLocaleTimeString());
+      },
+      (error) => {
+        console.error("Failed to subscribe to films:", error);
+        setConnectionStatus("disconnected");
+        setSyncError("Connection failed: " + error.message);
+        setAppError("Khong ket noi duoc Firebase. Vui long kiem tra cau hinh va mang roi thu lai.");
+        setIsLoading(false);
+      }
+    );
 
     // Simple online/offline listeners as a proxy for connection status
     const handleOnline = () => {
       console.log("Browser is online");
-      setConnectionStatus("connected");
+      setConnectionStatus((prev) => (prev === "disconnected" ? "connecting" : prev));
     };
     const handleOffline = () => {
       console.log("Browser is offline");
@@ -185,7 +238,58 @@ export default function App() {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
-  }, []);
+  }, [firebaseConfigVersion]);
+
+  useEffect(() => {
+    if (!settingsHydratedRef.current) return;
+
+    const timer = setTimeout(() => {
+      const currentGeminiApiKey = settingsGeminiApiKey.trim();
+      if (currentGeminiApiKey !== lastSavedGeminiApiKeyRef.current) {
+        setStoredGeminiApiKey(currentGeminiApiKey);
+        lastSavedGeminiApiKeyRef.current = currentGeminiApiKey;
+      }
+
+      const rawFirebaseInput = settingsFirebaseConfig.trim();
+      const currentStoredRaw = lastSavedFirebaseRawRef.current;
+
+      if (!rawFirebaseInput) {
+        if (currentStoredRaw !== "") {
+          setStoredFirebaseConfigRaw("");
+          lastSavedFirebaseRawRef.current = "";
+          setSettingsMessage("Auto-saved.");
+          setFirebaseConfigVersion((prev) => prev + 1);
+        }
+        return;
+      }
+
+      try {
+        parseFirebaseConfigInput(settingsFirebaseConfig);
+        if (rawFirebaseInput !== currentStoredRaw.trim()) {
+          setStoredFirebaseConfigRaw(settingsFirebaseConfig);
+          lastSavedFirebaseRawRef.current = settingsFirebaseConfig;
+          setSettingsMessage("Auto-saved.");
+          setFirebaseConfigVersion((prev) => prev + 1);
+        }
+      } catch {
+        setSettingsMessage("Firebase JSON invalid, not saved.");
+      }
+    }, 700);
+
+    return () => clearTimeout(timer);
+  }, [settingsGeminiApiKey, settingsFirebaseConfig]);
+
+  useEffect(() => {
+    if (view !== "settings") return;
+    // Let layout settle before measuring scrollHeight.
+    const id = window.requestAnimationFrame(() => {
+      const el = firebaseConfigTextareaRef.current;
+      if (!el) return;
+      el.style.height = "auto";
+      el.style.height = `${el.scrollHeight}px`;
+    });
+    return () => window.cancelAnimationFrame(id);
+  }, [settingsFirebaseConfig, view]);
 
   // Helper: load poster file (original / edited) from input or drag & drop
   const handlePosterFile = (file: File, field: "originalPoster" | "editedPoster") => {
@@ -1382,19 +1486,73 @@ export default function App() {
               </div>
             </div>
           ) : (
-            <div className="max-w-3xl space-y-8">
-              {!isFirebaseConfigured && (
-                <div className="p-6 bg-red-900/20 border border-red-800/50 rounded-2xl flex items-start gap-4">
-                  <AlertCircle className="w-6 h-6 text-red-500 flex-shrink-0" />
+            <div className="w-full max-w-5xl mx-auto space-y-8">
+              <div className="glass-card rounded-2xl p-8">
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="p-3 bg-app-accent/10 rounded-2xl">
+                    <SettingsIcon className="w-6 h-6 text-app-accent" />
+                  </div>
                   <div>
-                    <h4 className="font-bold text-red-500">Firebase Not Configured</h4>
-                    <p className="text-sm text-red-200/70 mt-1">
-                      Critical environment variables are missing. Please add your Firebase credentials to the 
-                      <strong> Secrets</strong> panel in AI Studio to enable persistent storage.
-                    </p>
+                    <h3 className="text-xl font-bold text-app-text-primary">Configuration</h3>
+                    <p className="text-sm text-app-text-secondary">The data is stored locally in your browser (localStorage).</p>
                   </div>
                 </div>
-              )}
+
+                <div className="space-y-5">
+                  <div>
+                    <label className="block text-xs font-bold text-app-text-secondary uppercase tracking-wider mb-2">
+                      Gemini API key
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showGeminiApiKey ? "text" : "password"}
+                        value={settingsGeminiApiKey}
+                        onChange={(e) => setSettingsGeminiApiKey(e.target.value)}
+                        placeholder="AI KEY"
+                        className="w-full pr-12 px-4 py-3 bg-app-surface-hover border border-app-border rounded-xl focus:outline-none focus:ring-2 focus:ring-app-accent/20 transition-all text-sm text-app-text-primary placeholder:text-app-text-secondary/50"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowGeminiApiKey((prev) => !prev)}
+                        className="absolute top-1/2 right-3 -translate-y-1/2 p-1 text-app-text-secondary hover:text-app-text-primary"
+                        title={showGeminiApiKey ? "Hide API key" : "Show API key"}
+                      >
+                        {showGeminiApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-app-text-secondary uppercase tracking-wider mb-2">
+                      Firebase database config (JSON)
+                    </label>
+                    <textarea
+                      ref={firebaseConfigTextareaRef}
+                      value={settingsFirebaseConfig}
+                      onChange={(e) => {
+                        setSettingsFirebaseConfig(e.target.value);
+                        const el = e.currentTarget;
+                        el.style.height = "auto";
+                        el.style.height = `${el.scrollHeight}px`;
+                      }}
+                      rows={1}
+                      placeholder={FIREBASE_CONFIG_SAMPLE}
+                      className="w-full px-4 py-3 bg-app-surface-hover border border-app-border rounded-xl focus:outline-none focus:ring-2 focus:ring-app-accent/20 transition-all resize-none overflow-hidden text-sm text-app-text-primary placeholder:text-app-text-secondary/50"
+                    />
+                  </div>
+
+                  {settingsMessage && (
+                    <div className="text-xs text-emerald-400 font-medium">{settingsMessage}</div>
+                  )}
+
+                  {!isFirebaseConfigured && (
+                    <div className="p-4 bg-red-900/20 border border-red-800/50 rounded-xl text-sm text-red-200/80">
+                      Firebase chua du key can thiet. Vui long nhap du `apiKey`, `authDomain`, `projectId`, `storageBucket`, `messagingSenderId`, `appId`.
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div className="glass-card rounded-2xl p-8">
                 <div className="flex items-center gap-4 mb-8">
                   <div className="p-3 bg-app-accent/10 rounded-2xl">
@@ -1476,23 +1634,6 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="glass-card rounded-2xl p-8">
-                <h3 className="text-lg font-bold text-app-text-primary mb-4">System Information</h3>
-                <div className="space-y-4">
-                  <div className="flex justify-between py-3 border-b border-app-border">
-                    <span className="text-sm text-app-text-secondary">Platform</span>
-                    <span className="text-sm font-medium text-app-text-primary">Firebase Firestore</span>
-                  </div>
-                  <div className="flex justify-between py-3 border-b border-app-border">
-                    <span className="text-sm text-app-text-secondary">Region</span>
-                    <span className="text-sm font-medium text-app-text-primary">Global (Multi-region)</span>
-                  </div>
-                  <div className="flex justify-between py-3">
-                    <span className="text-sm text-app-text-secondary">Version</span>
-                    <span className="text-sm font-medium text-app-text-primary">v1.2.0-stable</span>
-                  </div>
-                </div>
-              </div>
             </div>
           )}
         </div>

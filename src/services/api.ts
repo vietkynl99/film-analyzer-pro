@@ -2,7 +2,6 @@ import { Film, ProductionStatus } from "../types";
 import { 
   collection, 
   getDocs, 
-  addDoc, 
   updateDoc, 
   deleteDoc, 
   doc, 
@@ -11,7 +10,7 @@ import {
   orderBy,
   setDoc
 } from "firebase/firestore";
-import { db } from "../lib/firebase";
+import { getDb } from "../lib/firebase";
 
 const FILMS_COLLECTION = "films";
 const SYNC_TIMEOUT = 20000; // Increased to 20 seconds for larger payloads
@@ -36,7 +35,7 @@ export const api = {
   async getFilms(): Promise<Film[]> {
     try {
       console.log("Fetching films from Firestore...");
-      const filmsCol = collection(db, FILMS_COLLECTION);
+      const filmsCol = collection(getDb(), FILMS_COLLECTION);
       const q = query(filmsCol, orderBy("createdAt", "desc"));
       const filmSnapshot = await withTimeout(getDocs(q), "getFilms");
       const films = filmSnapshot.docs.map(doc => {
@@ -59,7 +58,7 @@ export const api = {
 
   subscribeToFilms(callback: (films: Film[]) => void, onError?: (error: any) => void) {
     console.log("Setting up real-time subscription to Firestore...");
-    const filmsCol = collection(db, FILMS_COLLECTION);
+    const filmsCol = collection(getDb(), FILMS_COLLECTION);
     const q = query(filmsCol, orderBy("createdAt", "desc"));
     
     return onSnapshot(q, (snapshot) => {
@@ -119,7 +118,7 @@ export const api = {
         console.warn("Warning: Payload is approaching Firestore's 1MB limit. Consider using smaller images.");
       }
 
-      await withTimeout(setDoc(doc(db, FILMS_COLLECTION, id), filmData), "createFilm");
+      await withTimeout(setDoc(doc(getDb(), FILMS_COLLECTION, id), filmData), "createFilm");
       console.log("Film successfully created in Firestore.");
       return { id };
     } catch (error) {
@@ -131,7 +130,7 @@ export const api = {
   async updateFilm(id: string, film: Partial<Film>): Promise<void> {
     try {
       console.log(`Updating film ${id}...`);
-      const filmRef = doc(db, FILMS_COLLECTION, id);
+      const filmRef = doc(getDb(), FILMS_COLLECTION, id);
       
       const updateData: any = {
         ...film,
@@ -168,7 +167,7 @@ export const api = {
   async deleteFilm(id: string): Promise<void> {
     try {
       console.log(`Deleting film ${id}...`);
-      const filmRef = doc(db, FILMS_COLLECTION, id);
+      const filmRef = doc(getDb(), FILMS_COLLECTION, id);
       await withTimeout(deleteDoc(filmRef), "deleteFilm");
       console.log("Film successfully deleted from Firestore.");
     } catch (error) {

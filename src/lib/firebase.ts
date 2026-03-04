@@ -1,29 +1,30 @@
-import { initializeApp } from "firebase/app";
+import { getApp, getApps, initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
+import { getStoredFirebaseConfig, isFirebaseConfigComplete } from "./appConfig";
 
-const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
+const toAppName = (configKey: string) => `film-analyzer-${configKey}`;
+
+const hashConfig = (raw: string) => {
+  let hash = 0;
+  for (let i = 0; i < raw.length; i += 1) {
+    hash = (hash << 5) - hash + raw.charCodeAt(i);
+    hash |= 0;
+  }
+  return String(Math.abs(hash));
 };
 
-// Validate config
-const isPlaceholder = (val: string | undefined) => !val || val.includes("YOUR_") || val === "undefined";
+export const getDb = () => {
+  const firebaseConfig = getStoredFirebaseConfig();
 
-const missingKeys = Object.entries(firebaseConfig)
-  .filter(([key, value]) => isPlaceholder(value as string) && key !== 'measurementId')
-  .map(([key]) => key);
+  if (!isFirebaseConfigComplete(firebaseConfig)) {
+    throw new Error("Firebase config is missing or invalid. Update it in Settings.");
+  }
 
-if (missingKeys.length > 0) {
-  console.error("Firebase configuration is incomplete or using placeholders. Missing/Invalid keys:", missingKeys);
-  console.warn("Please ensure you have set all VITE_FIREBASE_* environment variables in the Secrets panel with REAL values from your Firebase console.");
-} else {
-  console.log("Firebase configuration detected for project:", firebaseConfig.projectId);
-}
+  const appName = toAppName(hashConfig(JSON.stringify(firebaseConfig)));
+  const app = getApps().some((item) => item.name === appName)
+    ? getApp(appName)
+    : initializeApp(firebaseConfig, appName);
+  return getFirestore(app);
+};
 
-const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app);
+export const isFirebaseReady = () => isFirebaseConfigComplete(getStoredFirebaseConfig());
