@@ -130,6 +130,7 @@ export default function App() {
   const [settingsGeminiApiKey, setSettingsGeminiApiKey] = useState<string>("");
   const [showGeminiApiKey, setShowGeminiApiKey] = useState(false);
   const [settingsFirebaseConfig, setSettingsFirebaseConfig] = useState<string>("");
+  const [showFirebaseConfig, setShowFirebaseConfig] = useState(false);
   const [settingsMessage, setSettingsMessage] = useState<string | null>(null);
   const [firebaseConfigVersion, setFirebaseConfigVersion] = useState(0);
   const settingsHydratedRef = useRef(false);
@@ -289,7 +290,7 @@ export default function App() {
       el.style.height = `${el.scrollHeight}px`;
     });
     return () => window.cancelAnimationFrame(id);
-  }, [settingsFirebaseConfig, view]);
+  }, [settingsFirebaseConfig, showFirebaseConfig, view]);
 
   // Helper: load poster file (original / edited) from input or drag & drop
   const handlePosterFile = (file: File, field: "originalPoster" | "editedPoster") => {
@@ -319,6 +320,8 @@ export default function App() {
     // No longer needed for manual refresh as we have real-time subscription
     // but keeping it as a no-op to avoid breaking other calls if any
   };
+
+  const maskedFirebaseConfig = settingsFirebaseConfig.replace(/[^\s]/g, "•");
 
   const handleSaveFilm = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1526,19 +1529,39 @@ export default function App() {
                     <label className="block text-xs font-bold text-app-text-secondary uppercase tracking-wider mb-2">
                       Firebase database config (JSON)
                     </label>
-                    <textarea
-                      ref={firebaseConfigTextareaRef}
-                      value={settingsFirebaseConfig}
-                      onChange={(e) => {
-                        setSettingsFirebaseConfig(e.target.value);
-                        const el = e.currentTarget;
-                        el.style.height = "auto";
-                        el.style.height = `${el.scrollHeight}px`;
-                      }}
-                      rows={1}
-                      placeholder={FIREBASE_CONFIG_SAMPLE}
-                      className="w-full px-4 py-3 bg-app-surface-hover border border-app-border rounded-xl focus:outline-none focus:ring-2 focus:ring-app-accent/20 transition-all resize-none overflow-hidden text-sm text-app-text-primary placeholder:text-app-text-secondary/50"
-                    />
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setShowFirebaseConfig((prev) => !prev)}
+                        className="absolute top-2 right-2 z-10 inline-flex items-center gap-1 px-2 py-1 rounded-md bg-app-surface border border-app-border text-xs text-app-text-secondary hover:text-app-text-primary"
+                        title={showFirebaseConfig ? "Hide Firebase config" : "Show Firebase config"}
+                      >
+                        {showFirebaseConfig ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                      {showFirebaseConfig ? (
+                        <textarea
+                          ref={firebaseConfigTextareaRef}
+                          value={settingsFirebaseConfig}
+                          onChange={(e) => {
+                            setSettingsFirebaseConfig(e.target.value);
+                            const el = e.currentTarget;
+                            el.style.height = "auto";
+                            el.style.height = `${el.scrollHeight}px`;
+                          }}
+                          rows={1}
+                          placeholder={FIREBASE_CONFIG_SAMPLE}
+                          className="w-full pr-24 px-4 py-3 bg-app-surface-hover border border-app-border rounded-xl focus:outline-none focus:ring-2 focus:ring-app-accent/20 transition-all resize-none overflow-hidden text-sm text-app-text-primary placeholder:text-app-text-secondary/50"
+                        />
+                      ) : (
+                        <textarea
+                          ref={firebaseConfigTextareaRef}
+                          value={maskedFirebaseConfig}
+                          readOnly
+                          rows={1}
+                          className="w-full pr-24 px-4 py-3 bg-app-surface-hover border border-app-border rounded-xl transition-all resize-none overflow-hidden text-sm text-app-text-secondary"
+                        />
+                      )}
+                    </div>
                   </div>
 
                   {settingsMessage && (
