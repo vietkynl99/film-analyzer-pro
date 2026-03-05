@@ -2307,11 +2307,6 @@ export default function App() {
                   {/* Right Column: Assets (Posters) */}
                   <div className="space-y-4">
                     <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-bold text-app-text-secondary uppercase tracking-wider">
-                          Visual Reference
-                        </span>
-                      </div>
                       <div className="space-y-4">
                         {/* Original Poster */}
                         <div>
