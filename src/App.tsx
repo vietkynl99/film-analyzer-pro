@@ -23,6 +23,7 @@ import {
   RefreshCw,
   Check,
   Copy,
+  Pencil,
   Eye,
   EyeOff
 } from "lucide-react";
@@ -159,6 +160,7 @@ export default function App() {
   const [editingCollectionsInput, setEditingCollectionsInput] = useState<string>("");
   const filterCollectionsRef = useRef<HTMLDivElement | null>(null);
   const statusFilterRef = useRef<HTMLDivElement | null>(null);
+  const collectionPickerRef = useRef<HTMLDivElement | null>(null);
   const [isStatusFilterOpen, setIsStatusFilterOpen] = useState(false);
 
   const [isFirebaseConfigured, setIsFirebaseConfigured] = useState(true);
@@ -601,6 +603,7 @@ export default function App() {
     });
     setIsVideoUrlEditing(!(film?.videoUrl && toClickableUrl(film.videoUrl)));
     setEditingCollectionsInput("");
+    setCollectionPicker(null);
     setIsModalOpen(true);
   };
 
@@ -659,6 +662,26 @@ export default function App() {
       setCurrentPage(newTotalPages);
     }
   }, [paginatedBase.length, currentPage]);
+
+  useEffect(() => {
+    if (!collectionPicker) return;
+
+    const currentPickerId = collectionPicker.filmId;
+    const handleOutside = (event: MouseEvent) => {
+      const targetNode = event.target as Node;
+      if (!collectionPickerRef.current) return;
+      if (collectionPickerRef.current.contains(targetNode)) return;
+      setCollectionPicker(null);
+      if (currentPickerId === "__edit_modal__") {
+        setEditingCollectionsInput("");
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleOutside);
+    };
+  }, [collectionPicker]);
 
   // Close filter dropdowns when clicking outside.
   useEffect(() => {
@@ -1266,79 +1289,80 @@ export default function App() {
                                 {visibleCollections.map(collection => (
                                   <span
                                     key={collection}
-                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-app-surface-hover border border-app-border text-[11px] text-app-text-secondary"
-                                    onClick={e => e.stopPropagation()}
+                                    className="inline-flex items-center px-2 py-0.5 rounded-full bg-app-surface-hover border border-app-border text-[11px] text-app-text-secondary cursor-pointer hover:border-app-accent/50 hover:text-app-accent"
+                                    onClick={e => {
+                                      e.stopPropagation();
+                                      if (collectionPicker?.filmId === film.id) {
+                                        setCollectionPicker(null);
+                                        return;
+                                      }
+                                      const current =
+                                        filmCollections && Array.isArray(filmCollections)
+                                          ? filmCollections
+                                          : [];
+                                      setCollectionPicker({
+                                        filmId: film.id,
+                                        selected: current,
+                                        newName: "",
+                                      });
+                                    }}
                                   >
                                     <span className="max-w-[120px] truncate">
                                       {sanitizeCollectionLabel(collection)}
                                     </span>
-                                    <button
-                                      type="button"
-                                      onClick={e => {
-                                        e.stopPropagation();
-                                        const next = filmCollections.filter(c => c !== collection);
-                                        api.updateFilm(film.id, { collections: next });
-                                      }}
-                                      className="ml-0.5 text-[10px] text-app-text-secondary/70 hover:text-red-400"
-                                    >
-                                      x
-                                    </button>
                                   </span>
                                 ))}
 
                                 {hiddenCount > 0 && (
-                                  <div
-                                    className="relative group"
-                                    onClick={e => e.stopPropagation()}
+                                  <button
+                                    type="button"
+                                    className="inline-flex items-center px-2 py-0.5 rounded-full bg-app-surface-hover border border-dashed border-app-border text-[11px] text-app-text-secondary hover:border-app-accent/50 hover:text-app-accent"
+                                    onClick={e => {
+                                      e.stopPropagation();
+                                      if (collectionPicker?.filmId === film.id) {
+                                        setCollectionPicker(null);
+                                        return;
+                                      }
+                                      const current =
+                                        filmCollections && Array.isArray(filmCollections)
+                                          ? filmCollections
+                                          : [];
+                                      setCollectionPicker({
+                                        filmId: film.id,
+                                        selected: current,
+                                        newName: "",
+                                      });
+                                    }}
                                   >
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-app-surface-hover border border-dashed border-app-border text-[11px] text-app-text-secondary cursor-default">
-                                      +{hiddenCount}
-                                    </span>
-                                    <div className="absolute z-20 mt-2 right-0 hidden group-hover:block">
-                                      <div className="min-w-[180px] max-w-xs bg-app-surface border border-app-border rounded-xl shadow-xl p-3">
-                                        <p className="text-[11px] font-semibold text-app-text-secondary mb-1">
-                                          Collections
-                                        </p>
-                                        <ul className="space-y-1 max-h-40 overflow-y-auto text-[11px] text-app-text-secondary">
-                                          {filmCollections.map(c => (
-                                            <li key={`full-${film.id}-${c}`} className="truncate">
-                                              {sanitizeCollectionLabel(c)}
-                                            </li>
-                                          ))}
-                                        </ul>
-                                      </div>
-                                    </div>
-                                  </div>
+                                    +{hiddenCount}
+                                  </button>
                                 )}
 
-                                <button
-                                  type="button"
-                                  onClick={e => {
-                                    e.stopPropagation();
-                                    // Toggle close if already open for this film
-                                    if (collectionPicker?.filmId === film.id) {
-                                      setCollectionPicker(null);
-                                      return;
-                                    }
-
-                                    const current =
-                                      filmCollections && Array.isArray(filmCollections)
-                                        ? filmCollections
-                                        : [];
-
-                                    setCollectionPicker({
-                                      filmId: film.id,
-                                      selected: current,
-                                      newName: "",
-                                    });
-                                  }}
-                                  className="inline-flex items-center px-2 py-0.5 rounded-full border border-dashed border-app-border text-[11px] text-app-text-secondary hover:border-app-accent/50 hover:text-app-accent hover:bg-app-surface-hover transition-colors"
-                                >
-                                  + Add
-                                </button>
+                                {filmCollections.length === 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={e => {
+                                      e.stopPropagation();
+                                      if (collectionPicker?.filmId === film.id) {
+                                        setCollectionPicker(null);
+                                        return;
+                                      }
+                                      setCollectionPicker({
+                                        filmId: film.id,
+                                        selected: [],
+                                        newName: "",
+                                      });
+                                    }}
+                                    className="inline-flex items-center justify-center w-7 h-7 rounded-md text-app-text-secondary hover:text-app-accent hover:bg-app-surface-hover transition-colors"
+                                    title="Edit collections"
+                                  >
+                                    <Pencil className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
 
                                 {collectionPicker?.filmId === film.id && (
                                   <div
+                                    ref={collectionPickerRef}
                                     className="absolute z-30 top-full mt-2 left-0 w-64 bg-app-surface border border-app-border rounded-2xl shadow-xl p-3"
                                     onClick={e => e.stopPropagation()}
                                   >
@@ -1968,86 +1992,156 @@ export default function App() {
 
                     {/* Collections editor inside Edit Film modal */}
                     <div className="mt-4 space-y-2">
-                      <label className="block text-xs font-bold text-app-text-secondary uppercase tracking-wider">
-                        Collections
-                      </label>
-                      <div className="flex flex-wrap gap-2">
-                        {allCollections.length === 0 && !((editingFilm?.collections || []).length) && (
-                          <span className="text-[11px] text-app-text-secondary">
-                            No collections yet. Create one below.
-                          </span>
-                        )}
-                        {allCollections.map(name => {
+                      <div className="flex items-center justify-between">
+                        <label className="block text-xs font-bold text-app-text-secondary uppercase tracking-wider">
+                          Collections
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCollectionPicker(prev => {
+                              if (prev?.filmId === "__edit_modal__") return null;
+                              const selected =
+                                editingFilm?.collections && Array.isArray(editingFilm.collections)
+                                  ? editingFilm.collections
+                                  : [];
+                              return {
+                                filmId: "__edit_modal__",
+                                selected,
+                                newName: "",
+                              };
+                            });
+                          }}
+                          className="inline-flex items-center justify-center w-7 h-7 rounded-md border border-app-border text-app-text-secondary hover:text-app-accent hover:border-app-accent/50 hover:bg-app-surface-hover transition-colors"
+                          title="Edit collections"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2 min-h-7">
+                        {(() => {
                           const current =
                             editingFilm?.collections && Array.isArray(editingFilm.collections)
                               ? editingFilm.collections
                               : [];
-                          const isSelected = current.includes(name);
-                          return (
+                          if (current.length === 0) {
+                            return (
+                              <span className="text-[11px] text-app-text-secondary">—</span>
+                            );
+                          }
+                          return current.map(name => (
+                            <span
+                              key={`edit-modal-selected-${name}`}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-app-surface-hover border border-app-border text-[11px] text-app-text-secondary"
+                              title={sanitizeCollectionLabel(name)}
+                            >
+                              <span className="truncate max-w-[140px]">
+                                {sanitizeCollectionLabel(name)}
+                              </span>
+                            </span>
+                          ));
+                        })()}
+                      </div>
+
+                      {collectionPicker?.filmId === "__edit_modal__" && (
+                        <div
+                          ref={collectionPickerRef}
+                          className="w-full bg-app-surface border border-app-border rounded-2xl shadow-xl p-3 space-y-3"
+                        >
+                          <div className="max-h-40 overflow-y-auto space-y-1">
+                            {allCollections.length === 0 && (
+                              <div className="text-[11px] text-app-text-secondary">
+                                No collections yet.
+                              </div>
+                            )}
+                            {allCollections.map(name => {
+                              const isChecked = collectionPicker.selected.includes(name);
+                              return (
+                                <label
+                                  key={`edit-picker-${name}`}
+                                  className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-app-surface-hover cursor-pointer text-[11px] text-app-text-primary"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={e => {
+                                      const checked = e.target.checked;
+                                      setCollectionPicker(prev => {
+                                        if (!prev || prev.filmId !== "__edit_modal__") return prev;
+                                        if (checked) {
+                                          if (prev.selected.includes(name)) return prev;
+                                          return { ...prev, selected: [...prev.selected, name] };
+                                        }
+                                        return {
+                                          ...prev,
+                                          selected: prev.selected.filter(c => c !== name),
+                                        };
+                                      });
+                                    }}
+                                    className="w-3 h-3 rounded border-app-border bg-app-surface-hover text-app-accent"
+                                  />
+                                  <span className="truncate">{sanitizeCollectionLabel(name)}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+
+                          <div className="space-y-1">
+                            <span className="text-[11px] text-app-text-secondary">+ New collection</span>
+                            <input
+                              type="text"
+                              placeholder="New collection name..."
+                              value={editingCollectionsInput}
+                              onChange={e => setEditingCollectionsInput(e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key !== "Enter") return;
+                                e.preventDefault();
+                                const name = sanitizeCollectionLabel(editingCollectionsInput);
+                                if (!name) return;
+                                setCollectionPicker(prev => {
+                                  if (!prev || prev.filmId !== "__edit_modal__") return prev;
+                                  if (prev.selected.includes(name)) return prev;
+                                  return { ...prev, selected: [...prev.selected, name] };
+                                });
+                                setEditingCollectionsInput("");
+                              }}
+                              className="w-full px-3 py-2 rounded-lg bg-app-surface-hover border border-app-border text-[11px] text-app-text-primary placeholder:text-app-text-secondary/60 focus:outline-none focus:ring-1 focus:ring-app-accent/60"
+                            />
+                          </div>
+
+                          <div className="flex justify-end gap-2">
                             <button
-                              key={`edit-modal-collection-${name}`}
                               type="button"
                               onClick={() => {
-                                setEditingFilm(prev => {
-                                  if (!prev) return prev;
-                                  const existing =
-                                    prev.collections && Array.isArray(prev.collections)
-                                      ? prev.collections
-                                      : [];
-                                  if (isSelected) {
-                                    return {
-                                      ...prev,
-                                      collections: existing.filter(c => c !== name),
-                                    };
-                                  }
-                                  return {
-                                    ...prev,
-                                    collections: [...existing, name],
-                                  };
-                                });
+                                setCollectionPicker(null);
+                                setEditingCollectionsInput("");
                               }}
-                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[11px] transition-colors ${
-                                isSelected
-                                  ? "bg-app-accent/20 border-app-accent text-app-accent"
-                                  : "bg-app-surface-hover border-app-border text-app-text-secondary hover:border-app-accent/50 hover:text-app-accent"
-                              }`}
+                              className="px-2 py-0.5 rounded-full border border-app-border text-[11px] text-app-text-secondary hover:bg-app-surface-hover transition-colors"
                             >
-                              <span className="truncate max-w-[120px]">{name}</span>
+                              Cancel
                             </button>
-                          );
-                        })}
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-[11px] text-app-text-secondary">
-                          + New collection
-                        </span>
-                        <input
-                          type="text"
-                          placeholder="New collection name..."
-                          value={editingCollectionsInput}
-                          onChange={e => setEditingCollectionsInput(e.target.value)}
-                          onKeyDown={e => {
-                            if (e.key !== "Enter") return;
-                            e.preventDefault();
-                            const name = editingCollectionsInput.trim();
-                            if (!name) return;
-                            setEditingFilm(prev => {
-                              if (!prev) return prev;
-                              const existing =
-                                prev.collections && Array.isArray(prev.collections)
-                                  ? prev.collections
-                                  : [];
-                              if (existing.includes(name)) return prev;
-                              return {
-                                ...prev,
-                                collections: [...existing, name],
-                              };
-                            });
-                            setEditingCollectionsInput("");
-                          }}
-                          className="flex-1 min-w-[160px] px-3 py-2 rounded-lg bg-app-surface-hover border border-app-border text-[11px] text-app-text-primary placeholder:text-app-text-secondary/60 focus:outline-none focus:ring-1 focus:ring-app-accent/60"
-                        />
-                      </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const picker = collectionPicker;
+                                if (!picker || picker.filmId !== "__edit_modal__") return;
+                                const trimmedNew = sanitizeCollectionLabel(editingCollectionsInput);
+                                const next = new Set(picker.selected);
+                                if (trimmedNew) next.add(trimmedNew);
+                                setEditingFilm(prev =>
+                                  prev ? { ...prev, collections: Array.from(next) } : prev
+                                );
+                                setCollectionPicker(null);
+                                setEditingCollectionsInput("");
+                              }}
+                              className="px-3 py-0.5 rounded-full bg-app-accent text-white text-[11px] font-medium hover:opacity-90 transition-opacity"
+                            >
+                              Save
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* YouTube Title Suggestions */}
