@@ -75,6 +75,36 @@ const FIREBASE_CONFIG_SAMPLE = `{
   "measurementId": ""
 }`;
 
+const extractAndNormalizeVideoUrl = (input: string): string => {
+  const raw = String(input || "").trim();
+  if (!raw) return "";
+
+  const candidates = raw.match(/https?:\/\/[^\s]+/gi) || [];
+  const preferred =
+    candidates.find(url => /douyin\.com/i.test(url)) ||
+    candidates[0] ||
+    raw;
+
+  let cleaned = preferred.trim();
+  cleaned = cleaned.replace(/[),.!?;:'"<>]+$/g, "");
+
+  try {
+    const parsed = new URL(cleaned);
+    if (parsed.pathname !== "/") {
+      parsed.pathname = parsed.pathname.replace(/\/+$/g, "");
+    }
+    return parsed.toString();
+  } catch {
+    return cleaned.replace(/\/+$/g, "");
+  }
+};
+
+const toClickableUrl = (input: string): string | null => {
+  const value = String(input || "").trim();
+  if (!/^https?:\/\//i.test(value)) return null;
+  return value;
+};
+
 // --- Main App ---
 
 export default function App() {
@@ -133,10 +163,12 @@ export default function App() {
   const [showFirebaseConfig, setShowFirebaseConfig] = useState(false);
   const [settingsMessage, setSettingsMessage] = useState<string | null>(null);
   const [firebaseConfigVersion, setFirebaseConfigVersion] = useState(0);
+  const [isVideoUrlEditing, setIsVideoUrlEditing] = useState(true);
   const settingsHydratedRef = useRef(false);
   const lastSavedGeminiApiKeyRef = useRef("");
   const lastSavedFirebaseRawRef = useRef("");
   const firebaseConfigTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const videoUrlInputRef = useRef<HTMLInputElement | null>(null);
 
   const allCollections = React.useMemo(
     () =>
@@ -170,6 +202,14 @@ export default function App() {
     const timer = setTimeout(() => setCopiedField(null), 1500);
     return () => clearTimeout(timer);
   }, [copiedField]);
+
+  useEffect(() => {
+    if (!isModalOpen || !isVideoUrlEditing) return;
+    const id = window.setTimeout(() => {
+      videoUrlInputRef.current?.focus();
+    }, 0);
+    return () => window.clearTimeout(id);
+  }, [isModalOpen, isVideoUrlEditing]);
 
   useEffect(() => {
     if (!settingsMessage) return;
@@ -344,13 +384,14 @@ export default function App() {
 
     const originalTitle = cleanStr(editingFilm?.originalTitle);
     const translatedTitle = cleanStr(editingFilm?.translatedTitle);
+    const videoUrl = cleanStr(editingFilm?.videoUrl);
     const summary_original_raw = cleanStr(editingFilm?.summary_original);
     const summary_vi_raw = cleanStr(editingFilm?.summary_vi);
     const originalPoster = editingFilm?.originalPoster || null;
     const editedPoster = editingFilm?.editedPoster || null;
 
     // Minimum Creation Rule: At least one of the 6 fields must have a value
-    const hasValue = originalTitle || translatedTitle || summary_original_raw || summary_vi_raw || originalPoster || editedPoster;
+    const hasValue = videoUrl || originalTitle || translatedTitle || summary_original_raw || summary_vi_raw || originalPoster || editedPoster;
 
     if (!hasValue) {
       setSyncError("Please provide at least one piece of information (title, summary, or poster).");
@@ -369,6 +410,7 @@ export default function App() {
       // Ensure title is set to translatedTitle for display consistency
       const filmToSave = {
         ...editingFilm,
+        videoUrl,
         originalTitle,
         translatedTitle,
         score: Math.floor(editingFilm?.score || 1),
@@ -538,6 +580,7 @@ export default function App() {
   const openEditModal = (film: Film | null = null) => {
     setEditingFilm(film || { 
       title: "", 
+      videoUrl: "",
       originalTitle: "",
       translatedTitle: "",
       score: 1,
@@ -548,6 +591,7 @@ export default function App() {
       youtubeTags: "",
       collections: [],
     });
+    setIsVideoUrlEditing(!(film?.videoUrl && toClickableUrl(film.videoUrl)));
     setEditingCollectionsInput("");
     setIsModalOpen(true);
   };
@@ -1719,6 +1763,55 @@ export default function App() {
                 <div className="grid grid-cols-1 md:grid-cols-[4fr_2fr] lg:grid-cols-[8fr_2fr] gap-8">
                   {/* Left Column: Bilingual Content + Metadata */}
                   <div className="space-y-6">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-app-text-secondary uppercase tracking-wider mb-2">
+                        Video Link
+                      </label>
+                      {toClickableUrl(editingFilm?.videoUrl || "") && !isVideoUrlEditing ? (
+                        <div
+                          onClick={e => {
+                            if (e.target !== e.currentTarget) return;
+                            setIsVideoUrlEditing(true);
+                          }}
+                          className="w-full px-4 py-3 bg-app-surface-hover border border-app-border rounded-xl transition-all cursor-text"
+                          title="Click to edit"
+                        >
+                          <a
+                            href={toClickableUrl(editingFilm?.videoUrl || "") || "#"}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm text-app-accent hover:underline break-all"
+                            title="Ctrl+Click to open"
+                          >
+                            {editingFilm?.videoUrl}
+                          </a>
+                        </div>
+                      ) : (
+                        <input
+                          ref={videoUrlInputRef}
+                          type="text"
+                          value={editingFilm?.videoUrl || ""}
+                          onChange={e =>
+                            setEditingFilm(prev =>
+                              prev
+                                ? {
+                                    ...prev,
+                                    videoUrl: extractAndNormalizeVideoUrl(e.target.value),
+                                  }
+                                : prev
+                            )
+                          }
+                          onBlur={() => {
+                            if (toClickableUrl(editingFilm?.videoUrl || "")) {
+                              setIsVideoUrlEditing(false);
+                            }
+                          }}
+                          placeholder="Paste raw text or link (e.g. Douyin share text)"
+                          className="w-full px-4 py-3 bg-app-surface-hover border border-app-border rounded-xl focus:outline-none focus:ring-2 focus:ring-app-accent/20 transition-all text-app-text-primary placeholder:text-app-text-secondary/50"
+                        />
+                      )}
+                    </div>
+
                     {/* Titles - Aligned by Language Columns */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>

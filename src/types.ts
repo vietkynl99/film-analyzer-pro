@@ -21,6 +21,7 @@ export interface FilmAnalysis {
 
 export interface Film {
   id: string;
+  videoUrl?: string;
   originalTitle: string;
   translatedTitle: string;
   score: number;

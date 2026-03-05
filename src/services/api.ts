@@ -86,6 +86,7 @@ export const api = {
       console.log(`Creating film with ID: ${id}`);
       
       const filmData = {
+        videoUrl: film.videoUrl || "",
         originalTitle: film.originalTitle || "",
         translatedTitle: film.translatedTitle || "",
         score: Math.floor(film.score || 1),
