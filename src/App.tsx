@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+﻿import React, { useState, useEffect, useRef } from "react";
 import { Film, ProductionStatus } from "./types";
 import { api } from "./services/api";
 import { 
@@ -105,6 +105,11 @@ const toClickableUrl = (input: string): string | null => {
   return value;
 };
 
+const sanitizeCollectionLabel = (value: string): string =>
+  String(value || "")
+    .replace(/\s*[\u00C3\u00C2]+\s*$/g, "")
+    .trim();
+
 // --- Main App ---
 
 export default function App() {
@@ -133,7 +138,7 @@ export default function App() {
   const [isExtractingTitle, setIsExtractingTitle] = useState(false);
   const [isGeneratingTitles, setIsGeneratingTitles] = useState(false);
   const [titleSuggestions, setTitleSuggestions] = useState<string[]>([]);
-  // Luôn dùng phong cách kịch tính/gây tò mò mạnh cho tiêu đề YouTube
+  // Always use a dramatic style for YouTube title generation.
   const titleStyle: "dramatic" = "dramatic";
 
   const [isGeneratingSeo, setIsGeneratingSeo] = useState(false);
@@ -144,13 +149,13 @@ export default function App() {
   // UI state: field that was recently copied (for copy icon -> check icon)
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
-  // Inline picker "Lưu vào..." cho Collections (chọn nhiều + tạo mới)
+  // Inline collection picker (multi-select + create new)
   const [collectionPicker, setCollectionPicker] = useState<{
     filmId: string;
     selected: string[];
     newName: string;
   } | null>(null);
-  // Input tạm cho phần chỉnh sửa collections trong Edit Film modal
+  // Temp input for editing collections in Edit Film modal
   const [editingCollectionsInput, setEditingCollectionsInput] = useState<string>("");
   const filterCollectionsRef = useRef<HTMLDivElement | null>(null);
   const statusFilterRef = useRef<HTMLDivElement | null>(null);
@@ -174,7 +179,10 @@ export default function App() {
     () =>
       Array.from(
         new Set(
-          films.flatMap(f => (f.collections && Array.isArray(f.collections) ? f.collections : []))
+          films
+            .flatMap(f => (f.collections && Array.isArray(f.collections) ? f.collections : []))
+            .map(sanitizeCollectionLabel)
+            .filter(Boolean)
         )
       ).sort((a, b) => String(a).localeCompare(String(b))),
     [films]
@@ -187,7 +195,7 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [appError]);
 
-  // Auto-hide YouTube SEO error toast sau 3 giây
+  // Auto-hide YouTube SEO error toast after 3 seconds
   useEffect(() => {
     if (!seoError) return;
     const timer = setTimeout(() => {
@@ -256,7 +264,7 @@ export default function App() {
         console.error("Failed to subscribe to films:", error);
         setConnectionStatus("disconnected");
         setSyncError("Connection failed: " + error.message);
-        setAppError("Khong ket noi duoc Firebase. Vui long kiem tra cau hinh va mang roi thu lai.");
+        setAppError("Unable to connect to Firebase. Please check your configuration and network, then try again.");
         setIsLoading(false);
       }
     );
@@ -371,7 +379,7 @@ export default function App() {
 
     if (!isFirebaseConfigured) {
       setSyncError("Firebase is not configured. Please add credentials in Settings.");
-      setAppError("Firebase chưa được cấu hình. Vui lòng vào Settings để thêm credentials trước khi lưu.");
+      setAppError("Firebase is not configured. Please add credentials in Settings before saving.");
       return;
     }
 
@@ -395,7 +403,7 @@ export default function App() {
 
     if (!hasValue) {
       setSyncError("Please provide at least one piece of information (title, summary, or poster).");
-      setAppError("Cần nhập ít nhất một thông tin (tiêu đề, tóm tắt hoặc poster) trước khi lưu.");
+      setAppError("Please enter at least one piece of information (title, summary, or poster) before saving.");
       return;
     }
 
@@ -435,7 +443,7 @@ export default function App() {
     } catch (error: any) {
       console.error("Failed to save film", error);
       setSyncError(error.message || "Failed to sync with database");
-      setAppError("Lưu dữ liệu lên Firebase thất bại. Vui lòng thử lại.");
+      setAppError("Failed to save data to Firebase. Please try again.");
     } finally {
       setIsSyncing(false);
     }
@@ -463,7 +471,7 @@ export default function App() {
     } catch (error: any) {
       console.error("Failed to translate content", error);
       setSyncError(error.message || "Failed to translate content");
-      setAppError("Dịch summary sang tiếng Việt bằng AI bị lỗi. Vui lòng thử lại.");
+      setAppError("AI translation to Vietnamese failed. Please try again.");
     } finally {
       setIsTranslating(false);
     }
@@ -476,7 +484,7 @@ export default function App() {
     const cnSummary = editingFilm.summary_original?.toString().trim();
 
     if (!originalTitle && !cnSummary) {
-      setSyncError("Cần ít nhất Original Title hoặc Summary (Chinese) để tạo tiêu đề YouTube.");
+      setSyncError("Original Title or Summary (Chinese) is required to generate YouTube titles.");
       return;
     }
 
@@ -490,7 +498,7 @@ export default function App() {
     } catch (error: any) {
       console.error("Failed to generate YouTube titles", error);
       setSyncError(error.message || "Failed to generate YouTube titles");
-      setAppError("Tạo gợi ý tiêu đề YouTube bằng AI bị lỗi. Vui lòng thử lại.");
+      setAppError("AI failed to generate YouTube title suggestions. Please try again.");
     } finally {
       setIsGeneratingTitles(false);
     }
@@ -503,7 +511,7 @@ export default function App() {
     const summaryText = (editingFilm.summary_vi || editingFilm.summary_original || "").toString().trim();
 
     if (!vietnameseTitle) {
-      setSyncError("Cần tiêu đề tiếng Việt (Final Title) để tạo mô tả YouTube.");
+      setSyncError("Vietnamese title (Final Title) is required to generate a YouTube description.");
       return;
     }
 
@@ -513,9 +521,9 @@ export default function App() {
     try {
       const result = await generateYoutubeSeoMeta(vietnameseTitle, summaryText);
 
-      // Nếu AI trả về rỗng (hoặc chỉ toàn khoảng trắng) thì coi như lỗi để báo lên UI
+      // Treat empty/whitespace-only AI output as an error and surface it in UI.
       if (!result || !result.trim()) {
-        const msg = "Không tạo được mô tả YouTube. Vui lòng kiểm tra cấu hình Gemini API rồi thử lại.";
+        const msg = "Could not generate YouTube description. Please check Gemini API settings and try again.";
         setSeoError(msg);
         setAppError(msg);
         return;
@@ -525,11 +533,11 @@ export default function App() {
       const descriptionBlock = parts[0] || "";
       const tagsBlock = parts[1] || "";
 
-      const youtubeDescription = descriptionBlock.replace(/MÔ TẢ VIDEO:\s*/i, "").trim();
+      const youtubeDescription = descriptionBlock.replace(/VIDEO DESCRIPTION:\s*/i, "").trim();
       const youtubeTags = tagsBlock.trim();
 
       if (!youtubeDescription || !youtubeTags) {
-        const msg = "Kết quả mô tả/tags không hợp lệ. Vui lòng thử tạo lại mô tả YouTube.";
+        const msg = "Generated description/tags are invalid. Please generate YouTube description again.";
         setSeoError(msg);
         setAppError(msg);
         return;
@@ -547,12 +555,12 @@ export default function App() {
     } catch (error: any) {
       console.error("Failed to generate YouTube SEO meta", error);
 
-      let msg = "Không tạo được mô tả YouTube. Vui lòng kiểm tra Gemini API và thử lại.";
+      let msg = "Could not generate YouTube description. Please check Gemini API and try again.";
 
       const rawMessage = String(error?.message || "");
       if (rawMessage.includes("You exceeded your current quota") || rawMessage.includes("RESOURCE_EXHAUSTED")) {
         msg =
-          "Đã vượt giới hạn quota miễn phí của Gemini API cho hôm nay. Vui lòng đợi hoặc nâng gói/quota rồi thử lại.";
+          "You have exceeded today's Gemini API free quota. Please wait or upgrade quota, then try again.";
       }
 
       setSeoError(msg);
@@ -571,7 +579,7 @@ export default function App() {
     } catch (error: any) {
       console.error("Failed to delete film", error);
       setSyncError(error.message || "Failed to delete from database");
-       setAppError("Xoá dữ liệu trên Firebase thất bại. Vui lòng thử lại.");
+       setAppError("Failed to delete data from Firebase. Please try again.");
     } finally {
       setIsSyncing(false);
     }
@@ -640,7 +648,7 @@ export default function App() {
     currentPage * FILMS_PER_PAGE
   );
 
-  // Reset hoặc clamp lại currentPage khi filter/search thay đổi hoặc số lượng films thay đổi
+  // Reset or clamp currentPage when filters/search/results change.
   useEffect(() => {
     setCurrentPage(1);
   }, [filterStatuses, filterCollections, normalizedSearch, sortField, sortDirection]);
@@ -652,7 +660,7 @@ export default function App() {
     }
   }, [paginatedBase.length, currentPage]);
 
-  // Đóng dropdown filters khi click ra ngoài
+  // Close filter dropdowns when clicking outside.
   useEffect(() => {
     if (!isFilterCollectionsOpen && !isStatusFilterOpen) return;
 
@@ -813,7 +821,7 @@ export default function App() {
                             </div>
                           )}
                           <div className="text-[11px] text-app-text-secondary mt-0.5">
-                            Score: <span className="font-mono">{film.score || "—"}/10</span>
+                            Score: <span className="font-mono">{film.score || "-"}/10</span>
                           </div>
                         </div>
                         <StatusBadge status={film.status} />
@@ -821,7 +829,7 @@ export default function App() {
                     ))
                   ) : (
                     <div className="px-3 py-2 text-[12px] text-app-text-secondary">
-                      Không tìm thấy phim phù hợp.
+                      No matching films found.
                     </div>
                   )}
                 </div>
@@ -841,7 +849,7 @@ export default function App() {
         {appError && (
           <div className="fixed top-6 right-6 z-[60]">
             <div className="max-w-sm bg-red-900/90 border border-red-700 rounded-2xl px-4 py-3 shadow-xl shadow-red-900/40">
-              <p className="text-xs font-semibold text-red-100 mb-1">Thông báo lỗi</p>
+              <p className="text-xs font-semibold text-red-100 mb-1">Error Notice</p>
               <p className="text-xs text-red-100/90">{appError}</p>
             </div>
           </div>
@@ -883,7 +891,7 @@ export default function App() {
                           className="p-4 hover:bg-app-surface-hover transition-colors flex items-center justify-between group cursor-pointer"
                           title={`${film.translatedTitle || film.title}${
                             film.originalTitle ? ` • ${film.originalTitle}` : ""
-                          } • ${STATUS_LABELS[film.status]} • Score: ${film.score || "—"}/10`}
+                          } • ${STATUS_LABELS[film.status]} • Score: ${film.score || "-"}/10`}
                         >
                           <div className="flex items-center gap-4">
                             <div className="w-12 h-16 bg-app-surface-hover rounded-lg overflow-hidden flex-shrink-0 border border-app-border">
@@ -905,7 +913,7 @@ export default function App() {
                                 </p>
                               )}
                               <p className="text-[11px] text-app-text-secondary mt-0.5">
-                                Score: <span className="font-mono">{film.score || "—"}/10</span>
+                                Score: <span className="font-mono">{film.score || "-"}/10</span>
                               </p>
                             </div>
                           </div>
@@ -1052,7 +1060,7 @@ export default function App() {
                           <div className="max-h-48 overflow-y-auto space-y-1">
                             {allCollections.length === 0 && (
                               <div className="text-[11px] text-app-text-secondary">
-                                Chưa có collection nào.
+                                No collections yet.
                               </div>
                             )}
                             {allCollections.map(name => {
@@ -1261,7 +1269,9 @@ export default function App() {
                                     className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-app-surface-hover border border-app-border text-[11px] text-app-text-secondary"
                                     onClick={e => e.stopPropagation()}
                                   >
-                                    <span className="max-w-[120px] truncate">{collection}</span>
+                                    <span className="max-w-[120px] truncate">
+                                      {sanitizeCollectionLabel(collection)}
+                                    </span>
                                     <button
                                       type="button"
                                       onClick={e => {
@@ -1271,7 +1281,7 @@ export default function App() {
                                       }}
                                       className="ml-0.5 text-[10px] text-app-text-secondary/70 hover:text-red-400"
                                     >
-                                      ×
+                                      x
                                     </button>
                                   </span>
                                 ))}
@@ -1292,7 +1302,7 @@ export default function App() {
                                         <ul className="space-y-1 max-h-40 overflow-y-auto text-[11px] text-app-text-secondary">
                                           {filmCollections.map(c => (
                                             <li key={`full-${film.id}-${c}`} className="truncate">
-                                              {c}
+                                              {sanitizeCollectionLabel(c)}
                                             </li>
                                           ))}
                                         </ul>
@@ -1305,7 +1315,7 @@ export default function App() {
                                   type="button"
                                   onClick={e => {
                                     e.stopPropagation();
-                                    // Nếu đang mở cho phim này thì toggle đóng lại
+                                    // Toggle close if already open for this film
                                     if (collectionPicker?.filmId === film.id) {
                                       setCollectionPicker(null);
                                       return;
@@ -1334,7 +1344,7 @@ export default function App() {
                                   >
                                     <div className="mb-2">
                                       <p className="text-xs font-semibold text-app-text-primary">
-                                        Lưu vào...
+                                        Save to...
                                       </p>
                                     </div>
 
@@ -1377,11 +1387,11 @@ export default function App() {
                                     <div className="space-y-2">
                                       <div className="space-y-1">
                                         <span className="text-[11px] text-app-text-secondary">
-                                          + Danh sách mới
+                                          + New collection
                                         </span>
                                         <input
                                           type="text"
-                                          placeholder="Tên collection mới..."
+                                          placeholder="New collection name..."
                                           value={collectionPicker.newName}
                                           onChange={e =>
                                             setCollectionPicker(prev =>
@@ -1427,7 +1437,7 @@ export default function App() {
                                               console.error("Failed to update collections (enter)", error);
                                               setAppError(
                                                 error?.message ||
-                                                  "Cập nhật collection cho phim thất bại. Vui lòng thử lại."
+                                                  "Failed to update film collections. Please try again."
                                               );
                                             } finally {
                                               setCollectionPicker(null);
@@ -1445,7 +1455,7 @@ export default function App() {
                                           }}
                                           className="px-2 py-0.5 rounded-full border border-app-border text-[11px] text-app-text-secondary hover:bg-app-surface-hover transition-colors"
                                         >
-                                          Hủy
+                                          Cancel
                                         </button>
                                         <button
                                           type="button"
@@ -1467,7 +1477,7 @@ export default function App() {
 
                                             const next = Array.from(baseSet);
 
-                                            // Nếu không có thay đổi gì thì chỉ đóng popup
+                                            // If nothing changed, just close the popup
                                             const originalSet = new Set(filmCollections);
                                             const noNewName = !trimmedNew;
                                             const sameSize = baseSet.size === originalSet.size;
@@ -1486,7 +1496,7 @@ export default function App() {
                                               console.error("Failed to update collections", error);
                                               setAppError(
                                                 error?.message ||
-                                                  "Cập nhật collection cho phim thất bại. Vui lòng thử lại."
+                                                  "Failed to update film collections. Please try again."
                                               );
                                             } finally {
                                               setCollectionPicker(null);
@@ -1494,7 +1504,7 @@ export default function App() {
                                           }}
                                           className="px-3 py-0.5 rounded-full bg-app-accent text-white text-[11px] font-medium hover:opacity-90 transition-opacity"
                                         >
-                                          Lưu
+                                          Save
                                         </button>
                                       </div>
                                     </div>
@@ -1614,7 +1624,7 @@ export default function App() {
 
                   {!isFirebaseConfigured && (
                     <div className="p-4 bg-red-900/20 border border-red-800/50 rounded-xl text-sm text-red-200/80">
-                      Firebase chua du key can thiet. Vui long nhap du `apiKey`, `authDomain`, `projectId`, `storageBucket`, `messagingSenderId`, `appId`.
+                      Firebase is missing required keys. Please provide `apiKey`, `authDomain`, `projectId`, `storageBucket`, `messagingSenderId`, and `appId`.
                     </div>
                   )}
                 </div>
@@ -1687,7 +1697,7 @@ export default function App() {
                           setTimeout(() => setSyncSuccess(false), 2000);
                         } catch (e) {
                           setSyncError("Health check failed");
-                          setAppError("Health check Firebase thất bại. Vui lòng kiểm tra cấu hình và thử lại.");
+                          setAppError("Firebase health check failed. Please check configuration and try again.");
                         } finally {
                           setIsSyncing(false);
                         }
@@ -1830,7 +1840,7 @@ export default function App() {
                                 try {
                                   const title = await extractOriginalTitleFromPoster(editingFilm.originalPoster);
                                   if (!title) {
-                                    const msg = "AI không đọc được tiêu đề từ poster. Vui lòng thử lại hoặc nhập tay.";
+                                    const msg = "AI could not read the title from the poster. Please try again or enter it manually.";
                                     setAppError(msg);
                                     return;
                                   }
@@ -1839,11 +1849,11 @@ export default function App() {
                                   setEditingFilm(prev => (prev ? { ...prev, originalTitle: combined } : prev));
                                 } catch (error: any) {
                                   console.error("Failed to extract title from poster", error);
-                                  let msg = "AI không đọc được tiêu đề từ poster. Vui lòng thử lại hoặc nhập tay.";
+                                  let msg = "AI could not read the title from the poster. Please try again or enter it manually.";
                                   const rawMessage = String(error?.message || "");
                                   if (rawMessage.includes("You exceeded your current quota") || rawMessage.includes("RESOURCE_EXHAUSTED")) {
                                     msg =
-                                      "Đã vượt giới hạn quota miễn phí của Gemini API cho hôm nay. Lấy tiêu đề từ poster tạm thời không dùng được.";
+                                      "You have exceeded today's Gemini API free quota. Title extraction from poster is temporarily unavailable.";
                                   }
                                   setSyncError(error.message || "Failed to extract title from poster");
                                   setAppError(msg);
@@ -1864,7 +1874,7 @@ export default function App() {
                                 </>
                               ) : (
                                 <>
-                                  <span>✨ Lấy từ poster</span>
+                                  <span>✨ Extract from poster</span>
                                 </>
                               )}
                             </button>
@@ -1874,7 +1884,7 @@ export default function App() {
                           type="text"
                           value={editingFilm?.originalTitle || ""}
                           onChange={e => setEditingFilm({ ...editingFilm, originalTitle: e.target.value })}
-                          placeholder="中文剧名"
+                          placeholder="Original title (Chinese)"
                           className="w-full px-4 py-3 bg-app-surface-hover border border-app-border rounded-xl focus:outline-none focus:ring-2 focus:ring-app-accent/20 transition-all text-app-text-primary placeholder:text-app-text-secondary/50"
                         />
                       </div>
@@ -1896,11 +1906,11 @@ export default function App() {
                             {isGeneratingTitles ? (
                               <>
                                 <span className="w-3 h-3 border-2 border-amber-400/40 border-t-amber-300 rounded-full animate-spin" />
-                                Đang tạo...
+                                Generating...
                               </>
                             ) : (
                               <>
-                                <span>✨ Tạo tiêu đề</span>
+                                <span>✨ Generate title</span>
                               </>
                             )}
                           </button>
@@ -1909,7 +1919,7 @@ export default function App() {
                           type="text"
                           value={editingFilm?.translatedTitle || ""}
                           onChange={e => setEditingFilm({ ...editingFilm, translatedTitle: e.target.value, title: e.target.value })}
-                          placeholder="Tiêu đề YouTube tiếng Việt"
+                          placeholder="Vietnamese YouTube title"
                           className="w-full px-4 py-3 bg-app-surface-hover border border-app-border rounded-xl focus:outline-none focus:ring-2 focus:ring-app-accent/20 transition-all text-app-text-primary placeholder:text-app-text-secondary/50"
                         />
                       </div>
@@ -1964,7 +1974,7 @@ export default function App() {
                       <div className="flex flex-wrap gap-2">
                         {allCollections.length === 0 && !((editingFilm?.collections || []).length) && (
                           <span className="text-[11px] text-app-text-secondary">
-                            Chưa có collection nào. Tạo mới bên dưới.
+                            No collections yet. Create one below.
                           </span>
                         )}
                         {allCollections.map(name => {
@@ -2009,11 +2019,11 @@ export default function App() {
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-[11px] text-app-text-secondary">
-                          + Danh sách mới
+                          + New collection
                         </span>
                         <input
                           type="text"
-                          placeholder="Tên collection mới..."
+                          placeholder="New collection name..."
                           value={editingCollectionsInput}
                           onChange={e => setEditingCollectionsInput(e.target.value)}
                           onKeyDown={e => {
@@ -2046,7 +2056,7 @@ export default function App() {
                         <div className="space-y-2 max-h-64 overflow-y-auto">
                           {isGeneratingTitles && titleSuggestions.length === 0 && (
                             <div className="text-[12px] text-app-text-secondary">
-                              Đang tạo 3–5 tiêu đề đề xuất...
+                              Generating 3-5 title suggestions...
                             </div>
                           )}
                           {titleSuggestions.map((suggestion, index) => (
@@ -2069,14 +2079,14 @@ export default function App() {
                                   }
                                   className="ml-2 px-2.5 py-1 rounded-full text-[10px] font-medium border border-app-accent text-app-accent bg-app-accent/10 hover:bg-app-accent/20 transition-all whitespace-nowrap"
                                 >
-                                  Chọn làm tiêu đề
+                                  Use as title
                                 </button>
                               </div>
                             </div>
                           ))}
                           {!isGeneratingTitles && titleSuggestions.length === 0 && (
                             <div className="text-[12px] text-app-text-secondary">
-                              Không tạo được gợi ý nào. Thử kiểm tra lại Original Title hoặc Summary (Chinese).
+                              No suggestions generated. Check Original Title or Summary (Chinese).
                             </div>
                           )}
                         </div>
@@ -2094,7 +2104,7 @@ export default function App() {
                             rows={10}
                             value={editingFilm?.summary_original || ""}
                             onChange={e => setEditingFilm({ ...editingFilm, summary_original: e.target.value })}
-                            placeholder="中文剧情简介"
+                            placeholder="Summary in Chinese"
                             className="w-full pr-14 px-4 py-3 bg-app-surface-hover border border-app-border rounded-xl focus:outline-none focus:ring-2 focus:ring-app-accent/20 transition-all resize-none text-sm text-app-text-primary placeholder:text-app-text-secondary/50 h-64 overflow-y-auto"
                           />
                           <button
@@ -2104,7 +2114,7 @@ export default function App() {
                               handleCopyToClipboard(
                                 editingFilm?.summary_original || "",
                                 "summary_cn",
-                                "Không copy được Summary (Chinese) vào clipboard."
+                                "Failed to copy Summary (Chinese) to clipboard."
                               )
                             }
                             className={`absolute top-2 right-2 w-7 h-7 flex items-center justify-center rounded-md border transition-all text-[11px] ${
@@ -2144,7 +2154,7 @@ export default function App() {
                               </>
                             ) : (
                               <>
-                                <span>✨Dịch</span>
+                                <span>✨ Translate</span>
                               </>
                             )}
                           </button>
@@ -2154,7 +2164,7 @@ export default function App() {
                             rows={10}
                             value={editingFilm?.summary_vi || ""}
                             onChange={e => setEditingFilm({ ...editingFilm, summary_vi: e.target.value })}
-                            placeholder="Tóm tắt nội dung tiếng Việt"
+                            placeholder="Vietnamese content summary"
                             className="w-full pr-14 px-4 py-3 bg-app-surface-hover border border-app-border rounded-xl focus:outline-none focus:ring-2 focus:ring-app-accent/20 transition-all resize-none text-sm text-app-text-primary placeholder:text-app-text-secondary/50 h-64 overflow-y-auto"
                           />
                           <button
@@ -2164,7 +2174,7 @@ export default function App() {
                               handleCopyToClipboard(
                                 editingFilm?.summary_vi || "",
                                 "summary_vi",
-                                "Không copy được Summary (Vietnamese) vào clipboard."
+                                "Failed to copy Summary (Vietnamese) to clipboard."
                               )
                             }
                             className={`absolute top-2 right-2 w-7 h-7 flex items-center justify-center rounded-md border transition-all text-[11px] ${
@@ -2184,7 +2194,7 @@ export default function App() {
                       </div>
                     </div>
 
-                    {/* YouTube SEO Description & Tags (UI giống Summary) */}
+                    {/* YouTube SEO Description & Tags (same layout as Summary) */}
                     {seoError && !isGeneratingSeo && (
                       <div className="text-[12px] text-red-300 bg-red-900/30 border border-red-800/60 rounded-xl px-3 py-2 mt-4">
                         {seoError}
@@ -2192,14 +2202,14 @@ export default function App() {
                     )}
                     {isGeneratingSeo && !editingFilm?.youtubeDescription && !editingFilm?.youtubeTags && (
                       <div className="text-[12px] text-app-text-secondary mt-2">
-                        Đang tạo mô tả và tags YouTube...
+                        Generating YouTube description and tags...
                       </div>
                     )}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                       <div>
                         <div className="flex items-center justify-between mb-2 gap-2">
                           <label className="block text-[11px] font-semibold text-app-text-secondary uppercase tracking-wider">
-                            Mô tả video YouTube
+                            YouTube video description
                           </label>
                           <button
                             type="button"
@@ -2214,11 +2224,11 @@ export default function App() {
                             {isGeneratingSeo ? (
                               <>
                                 <span className="w-3 h-3 border-2 border-emerald-400/40 border-t-emerald-300 rounded-full animate-spin" />
-                                Đang tạo mô tả...
+                                Generating description...
                               </>
                             ) : (
                               <>
-                                <span>✨ Tạo mô tả & tags</span>
+                                <span>✨ Generate description & tags</span>
                               </>
                             )}
                           </button>
@@ -2232,7 +2242,7 @@ export default function App() {
                                 prev ? { ...prev, youtubeDescription: e.target.value } : prev
                               )
                             }
-                            placeholder="Mô tả YouTube tối ưu SEO cho cả series..."
+                            placeholder="SEO-optimized YouTube description for the whole series..."
                             className="w-full pr-14 pl-4 py-3 bg-app-surface-hover border border-app-border rounded-xl focus:outline-none focus:ring-2 focus:ring-app-accent/20 transition-all resize-none text-sm text-app-text-primary placeholder:text-app-text-secondary/50 h-64 overflow-y-auto"
                           />
                           <button
@@ -2242,7 +2252,7 @@ export default function App() {
                               handleCopyToClipboard(
                                 editingFilm?.youtubeDescription || "",
                                 "youtube_description",
-                                "Không copy được mô tả YouTube vào clipboard."
+                                "Failed to copy YouTube description to clipboard."
                               )
                             }
                             className={`absolute top-2 right-2 w-7 h-7 flex items-center justify-center rounded-md border transition-all ${
@@ -2283,7 +2293,7 @@ export default function App() {
                               handleCopyToClipboard(
                                 editingFilm?.youtubeTags || "",
                                 "youtube_tags",
-                                "Không copy được Tags YouTube vào clipboard."
+                                "Failed to copy YouTube tags to clipboard."
                               )
                             }
                             className={`absolute top-2 right-2 w-7 h-7 flex items-center justify-center rounded-md border transition-all text-[11px] ${
@@ -2543,3 +2553,5 @@ export default function App() {
     </div>
   );
 }
+
+
