@@ -123,6 +123,7 @@ export default function App() {
   const [filterCollections, setFilterCollections] = useState<string[]>([]);
   const [isFilterCollectionsOpen, setIsFilterCollectionsOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Film | null>(null);
+  const [deleteCollectionTarget, setDeleteCollectionTarget] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [sortField, setSortField] = useState<"updated" | "score">("updated");
@@ -605,6 +606,43 @@ export default function App() {
     setEditingCollectionsInput("");
     setCollectionPicker(null);
     setIsModalOpen(true);
+  };
+
+  const handleDeleteCollectionGlobally = async (rawName: string) => {
+    const name = sanitizeCollectionLabel(rawName);
+    if (!name) return;
+
+    const affectedFilms = films.filter(f => {
+      const cols = Array.isArray(f.collections) ? f.collections : [];
+      return cols.includes(name);
+    });
+
+    try {
+      setIsSyncing(true);
+      await Promise.all(
+        affectedFilms.map(f => {
+          const cols = Array.isArray(f.collections) ? f.collections : [];
+          return api.updateFilm(f.id, { collections: cols.filter(c => c !== name) });
+        })
+      );
+
+      setEditingFilm(prev => {
+        if (!prev) return prev;
+        const cols = Array.isArray(prev.collections) ? prev.collections : [];
+        return { ...prev, collections: cols.filter(c => c !== name) };
+      });
+
+      setCollectionPicker(prev =>
+        prev ? { ...prev, selected: prev.selected.filter(c => c !== name) } : prev
+      );
+      setFilterCollections(prev => prev.filter(c => c !== name));
+    } catch (error: any) {
+      console.error("Failed to delete collection globally", error);
+      setAppError(error?.message || "Failed to delete collection.");
+    } finally {
+      setIsSyncing(false);
+      setDeleteCollectionTarget(null);
+    }
   };
 
   const normalizedSearch = searchQuery.trim().toLowerCase();
@@ -1402,7 +1440,19 @@ export default function App() {
                                               }}
                                               className="w-3 h-3 rounded border-app-border bg-app-surface-hover text-app-accent"
                                             />
-                                            <span className="truncate">{name}</span>
+                                            <span className="truncate flex-1">{sanitizeCollectionLabel(name)}</span>
+                                            <button
+                                              type="button"
+                                              onClick={e => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                setDeleteCollectionTarget(sanitizeCollectionLabel(name));
+                                              }}
+                                              className="shrink-0 p-0.5 rounded text-red-400/80 hover:text-red-300 hover:bg-red-900/20 transition-colors"
+                                              title={`Delete "${sanitizeCollectionLabel(name)}"`}
+                                            >
+                                              <X className="w-3 h-3" />
+                                            </button>
                                           </label>
                                         );
                                       })}
@@ -2022,7 +2072,9 @@ export default function App() {
                       <div className="flex flex-wrap gap-2 min-h-7">
                         {(() => {
                           const current =
-                            editingFilm?.collections && Array.isArray(editingFilm.collections)
+                            collectionPicker?.filmId === "__edit_modal__"
+                              ? collectionPicker.selected
+                              : editingFilm?.collections && Array.isArray(editingFilm.collections)
                               ? editingFilm.collections
                               : [];
                           if (current.length === 0) {
@@ -2050,41 +2102,65 @@ export default function App() {
                           className="w-full bg-app-surface border border-app-border rounded-2xl shadow-xl p-3 space-y-3"
                         >
                           <div className="max-h-40 overflow-y-auto space-y-1">
-                            {allCollections.length === 0 && (
-                              <div className="text-[11px] text-app-text-secondary">
-                                No collections yet.
-                              </div>
-                            )}
-                            {allCollections.map(name => {
-                              const isChecked = collectionPicker.selected.includes(name);
-                              return (
-                                <label
-                                  key={`edit-picker-${name}`}
-                                  className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-app-surface-hover cursor-pointer text-[11px] text-app-text-primary"
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={isChecked}
-                                    onChange={e => {
-                                      const checked = e.target.checked;
-                                      setCollectionPicker(prev => {
-                                        if (!prev || prev.filmId !== "__edit_modal__") return prev;
-                                        if (checked) {
-                                          if (prev.selected.includes(name)) return prev;
-                                          return { ...prev, selected: [...prev.selected, name] };
-                                        }
-                                        return {
-                                          ...prev,
-                                          selected: prev.selected.filter(c => c !== name),
-                                        };
-                                      });
-                                    }}
-                                    className="w-3 h-3 rounded border-app-border bg-app-surface-hover text-app-accent"
-                                  />
-                                  <span className="truncate">{sanitizeCollectionLabel(name)}</span>
-                                </label>
+                            {(() => {
+                              const pickerItems = collectionPicker.selected
+                                .map(sanitizeCollectionLabel)
+                                .filter(Boolean);
+                              const mergedCollections = Array.from(
+                                new Set([...allCollections, ...pickerItems])
                               );
-                            })}
+
+                              if (mergedCollections.length === 0) {
+                                return (
+                                  <div className="text-[11px] text-app-text-secondary">
+                                    No collections yet.
+                                  </div>
+                                );
+                              }
+
+                              return mergedCollections.map(name => {
+                                const isChecked = collectionPicker.selected.includes(name);
+                                return (
+                                  <label
+                                    key={`edit-picker-${name}`}
+                                    className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-app-surface-hover cursor-pointer text-[11px] text-app-text-primary"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      onChange={e => {
+                                        const checked = e.target.checked;
+                                        setCollectionPicker(prev => {
+                                          if (!prev || prev.filmId !== "__edit_modal__") return prev;
+                                          if (checked) {
+                                            if (prev.selected.includes(name)) return prev;
+                                            return { ...prev, selected: [...prev.selected, name] };
+                                          }
+                                          return {
+                                            ...prev,
+                                            selected: prev.selected.filter(c => c !== name),
+                                          };
+                                        });
+                                      }}
+                                      className="w-3 h-3 rounded border-app-border bg-app-surface-hover text-app-accent"
+                                    />
+                                    <span className="truncate flex-1">{sanitizeCollectionLabel(name)}</span>
+                                  <button
+                                    type="button"
+                                    onClick={e => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      setDeleteCollectionTarget(sanitizeCollectionLabel(name));
+                                    }}
+                                    className="shrink-0 p-0.5 rounded text-red-400/80 hover:text-red-300 hover:bg-red-900/20 transition-colors"
+                                    title={`Delete "${sanitizeCollectionLabel(name)}"`}
+                                  >
+                                      <X className="w-3 h-3" />
+                                    </button>
+                                  </label>
+                                );
+                              });
+                            })()}
                           </div>
 
                           <div className="space-y-1">
@@ -2619,6 +2695,79 @@ export default function App() {
                       }
                       await performDeleteFilm(deleteTarget.id);
                       setDeleteTarget(null);
+                    }}
+                    className={`px-5 py-2.5 rounded-full text-sm font-medium flex items-center gap-2 border transition-all ${
+                      isSyncing
+                        ? "bg-red-600/70 border-red-700/80 text-white cursor-not-allowed opacity-80"
+                        : "bg-red-600 hover:bg-red-500 border-red-700 text-white shadow-lg shadow-red-900/40"
+                    }`}
+                  >
+                    {isSyncing ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        Deleting...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="w-4 h-4" />
+                        Delete
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {deleteCollectionTarget && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setDeleteCollectionTarget(null)}
+              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-app-surface rounded-3xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col relative z-10 border border-app-border"
+            >
+              <div className="p-6 border-b border-app-border flex items-center gap-3">
+                <div className="p-2 rounded-full bg-red-900/30 border border-red-800/60">
+                  <Trash2 className="w-5 h-5 text-red-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-app-text-primary">Delete collection?</h3>
+                  <p className="text-xs text-app-text-secondary mt-1">
+                    This will remove the collection from all films.
+                  </p>
+                </div>
+              </div>
+              <div className="p-6 space-y-4">
+                <div className="bg-app-surface-hover border border-app-border rounded-2xl p-4">
+                  <div className="text-sm font-semibold text-app-text-primary truncate">
+                    {deleteCollectionTarget}
+                  </div>
+                </div>
+                <div className="flex justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setDeleteCollectionTarget(null)}
+                    className="px-5 py-2.5 text-sm font-medium text-app-text-secondary hover:text-app-text-primary rounded-full hover:bg-app-surface-hover transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isSyncing}
+                    onClick={async () => {
+                      if (!deleteCollectionTarget) return;
+                      await handleDeleteCollectionGlobally(deleteCollectionTarget);
                     }}
                     className={`px-5 py-2.5 rounded-full text-sm font-medium flex items-center gap-2 border transition-all ${
                       isSyncing
