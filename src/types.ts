@@ -1,5 +1,6 @@
 export enum ProductionStatus {
   IN_ANALYSIS = "in_analysis",
+  IN_PRODUCTION = "in_production",
   RELEASED = "released",
   CLOSED = "closed"
 }

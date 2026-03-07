@@ -1259,6 +1259,7 @@ export default function App() {
                         const visibleCollections = filmCollections.slice(0, 2);
                         const hiddenCount = filmCollections.length - visibleCollections.length;
                         const updatedSource = (film as any).updatedAt || (film as any).createdAt || null;
+                        const clickableVideoUrl = toClickableUrl(film.videoUrl || "");
                         const updatedLabel = updatedSource
                           ? new Date(updatedSource).toLocaleDateString()
                           : "—";
@@ -1304,6 +1305,24 @@ export default function App() {
                                 {film.originalTitle && (
                                   <div className="text-[11px] text-app-text-secondary/80 italic line-clamp-1">
                                     {film.originalTitle}
+                                  </div>
+                                )}
+                                {film.videoUrl && (
+                                  <div className="text-[11px] text-app-text-secondary/90 line-clamp-1">
+                                    {clickableVideoUrl ? (
+                                      <a
+                                        href={clickableVideoUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-app-accent hover:underline"
+                                        onClick={e => e.stopPropagation()}
+                                        title={film.videoUrl}
+                                      >
+                                        {film.videoUrl}
+                                      </a>
+                                    ) : (
+                                      <span title={film.videoUrl}>{film.videoUrl}</span>
+                                    )}
                                   </div>
                                 )}
                               </div>

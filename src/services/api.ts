@@ -17,6 +17,7 @@ const SYNC_TIMEOUT = 20000; // Increased to 20 seconds for larger payloads
 
 const mapStatus = (status: any): ProductionStatus => {
   const s = String(status || "").toLowerCase();
+  if (s === "in_production" || s === "in production") return ProductionStatus.IN_PRODUCTION;
   if (s === "released") return ProductionStatus.RELEASED;
   if (s === "closed") return ProductionStatus.CLOSED;
   return ProductionStatus.IN_ANALYSIS;
