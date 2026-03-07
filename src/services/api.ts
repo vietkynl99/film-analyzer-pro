@@ -15,6 +15,13 @@ import { getDb } from "../lib/firebase";
 const FILMS_COLLECTION = "films";
 const SYNC_TIMEOUT = 20000; // Increased to 20 seconds for larger payloads
 
+const normalizeEpisodeCount = (value: any): number | undefined => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return undefined;
+  const normalized = Math.floor(parsed);
+  return normalized > 0 ? normalized : undefined;
+};
+
 const mapStatus = (status: any): ProductionStatus => {
   const s = String(status || "").toLowerCase();
   if (s === "in_production" || s === "in production") return ProductionStatus.IN_PRODUCTION;
@@ -45,6 +52,7 @@ export const api = {
           ...data,
           id: doc.id,
           status: mapStatus(data.productionStatus || data.status),
+          episodeCount: normalizeEpisodeCount(data.episodeCount),
           originalPoster: data.originalPosterUrl || data.originalPoster,
           editedPoster: data.editedPosterUrl || data.editedPoster,
         } as Film;
@@ -69,6 +77,7 @@ export const api = {
           ...data,
           id: doc.id,
           status: mapStatus(data.productionStatus || data.status),
+          episodeCount: normalizeEpisodeCount(data.episodeCount),
           originalPoster: data.originalPosterUrl || data.originalPoster,
           editedPoster: data.editedPosterUrl || data.editedPoster,
         } as Film;
@@ -88,6 +97,7 @@ export const api = {
       
       const filmData = {
         videoUrl: film.videoUrl || "",
+        episodeCount: normalizeEpisodeCount(film.episodeCount),
         originalTitle: film.originalTitle || "",
         translatedTitle: film.translatedTitle || "",
         score: Math.floor(film.score || 1),
@@ -144,6 +154,9 @@ export const api = {
       if (film.originalPoster) updateData.originalPosterUrl = film.originalPoster;
       if (film.editedPoster) updateData.editedPosterUrl = film.editedPoster;
       if (film.score !== undefined) updateData.score = Math.floor(film.score);
+      if (film.episodeCount !== undefined) {
+        updateData.episodeCount = normalizeEpisodeCount(film.episodeCount) ?? null;
+      }
 
       // Remove id from update data to avoid overwriting the document ID field if it's there
       delete updateData.id;

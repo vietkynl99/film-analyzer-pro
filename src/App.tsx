@@ -396,13 +396,17 @@ export default function App() {
     const originalTitle = cleanStr(editingFilm?.originalTitle);
     const translatedTitle = cleanStr(editingFilm?.translatedTitle);
     const videoUrl = cleanStr(editingFilm?.videoUrl);
+    const parsedEpisodeCount = Math.floor(Number(editingFilm?.episodeCount));
+    const episodeCount = Number.isFinite(parsedEpisodeCount) && parsedEpisodeCount > 0
+      ? parsedEpisodeCount
+      : undefined;
     const summary_original_raw = cleanStr(editingFilm?.summary_original);
     const summary_vi_raw = cleanStr(editingFilm?.summary_vi);
     const originalPoster = editingFilm?.originalPoster || null;
     const editedPoster = editingFilm?.editedPoster || null;
 
     // Minimum Creation Rule: At least one of the 6 fields must have a value
-    const hasValue = videoUrl || originalTitle || translatedTitle || summary_original_raw || summary_vi_raw || originalPoster || editedPoster;
+    const hasValue = videoUrl || originalTitle || translatedTitle || summary_original_raw || summary_vi_raw || originalPoster || editedPoster || episodeCount;
 
     if (!hasValue) {
       setSyncError("Please provide at least one piece of information (title, summary, or poster).");
@@ -422,6 +426,7 @@ export default function App() {
       const filmToSave = {
         ...editingFilm,
         videoUrl,
+        episodeCount,
         originalTitle,
         translatedTitle,
         score: Math.floor(editingFilm?.score || 1),
@@ -592,6 +597,7 @@ export default function App() {
     setEditingFilm(film || { 
       title: "", 
       videoUrl: "",
+      episodeCount: undefined,
       originalTitle: "",
       translatedTitle: "",
       score: 1,
@@ -1307,6 +1313,11 @@ export default function App() {
                                     {film.originalTitle}
                                   </div>
                                 )}
+                                {film.episodeCount && film.episodeCount > 0 && (
+                                  <div className="text-[11px] text-app-text-secondary/90">
+                                    Episodes: <span className="font-medium text-app-text-primary">{film.episodeCount}</span>
+                                  </div>
+                                )}
                                 {film.videoUrl && (
                                   <div className="text-[11px] text-app-text-secondary/90 line-clamp-1">
                                     {clickableVideoUrl ? (
@@ -2015,7 +2026,7 @@ export default function App() {
                     </div>
 
                     {/* Metadata under Titles */}
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div>
                         <label className="block text-xs font-bold text-app-text-secondary uppercase tracking-wider mb-2">
                           Score
@@ -2037,6 +2048,31 @@ export default function App() {
                             {editingFilm?.score || 1}
                           </span>
                         </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-app-text-secondary uppercase tracking-wider mb-2">
+                          Episode Count
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={editingFilm?.episodeCount ?? ""}
+                          onChange={e => {
+                            const value = e.target.value;
+                            if (!value) {
+                              setEditingFilm({ ...editingFilm, episodeCount: undefined });
+                              return;
+                            }
+                            const parsed = Math.floor(Number(value));
+                            setEditingFilm({
+                              ...editingFilm,
+                              episodeCount: Number.isFinite(parsed) && parsed > 0 ? parsed : undefined,
+                            });
+                          }}
+                          placeholder="e.g. 24"
+                          className="w-full px-4 py-3 bg-app-surface-hover border border-app-border rounded-xl focus:outline-none focus:ring-2 focus:ring-app-accent/20 transition-all text-app-text-primary placeholder:text-app-text-secondary/50"
+                        />
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-app-text-secondary uppercase tracking-wider mb-2">Production Status</label>
