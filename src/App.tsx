@@ -1482,23 +1482,21 @@ export default function App() {
 
                                             const trimmedNew = picker.newName.trim();
 
-                                            const baseSet = new Set(
-                                              filmCollections && Array.isArray(filmCollections)
-                                                ? filmCollections
+                                            const nextSet = new Set(
+                                              picker.selected && Array.isArray(picker.selected)
+                                                ? picker.selected
                                                 : []
                                             );
+                                            if (trimmedNew) nextSet.add(trimmedNew);
 
-                                            picker.selected.forEach(c => baseSet.add(c));
-                                            if (trimmedNew) baseSet.add(trimmedNew);
-
-                                            const next = Array.from(baseSet);
+                                            const next = Array.from(nextSet);
 
                                             const originalSet = new Set(filmCollections);
                                             const noNewName = !trimmedNew;
-                                            const sameSize = baseSet.size === originalSet.size;
+                                            const sameSize = nextSet.size === originalSet.size;
                                             const sameItems =
                                               sameSize &&
-                                              Array.from(baseSet).every(c => originalSet.has(c));
+                                              Array.from(nextSet).every(c => originalSet.has(c));
 
                                             if (noNewName && sameItems) {
                                               setCollectionPicker(null);
@@ -1540,24 +1538,22 @@ export default function App() {
 
                                             const trimmedNew = picker.newName.trim();
 
-                                            const baseSet = new Set(
-                                              filmCollections && Array.isArray(filmCollections)
-                                                ? filmCollections
+                                            const nextSet = new Set(
+                                              picker.selected && Array.isArray(picker.selected)
+                                                ? picker.selected
                                                 : []
                                             );
+                                            if (trimmedNew) nextSet.add(trimmedNew);
 
-                                            picker.selected.forEach(c => baseSet.add(c));
-                                            if (trimmedNew) baseSet.add(trimmedNew);
-
-                                            const next = Array.from(baseSet);
+                                            const next = Array.from(nextSet);
 
                                             // If nothing changed, just close the popup
                                             const originalSet = new Set(filmCollections);
                                             const noNewName = !trimmedNew;
-                                            const sameSize = baseSet.size === originalSet.size;
+                                            const sameSize = nextSet.size === originalSet.size;
                                             const sameItems =
                                               sameSize &&
-                                              Array.from(baseSet).every(c => originalSet.has(c));
+                                              Array.from(nextSet).every(c => originalSet.has(c));
 
                                             if (noNewName && sameItems) {
                                               setCollectionPicker(null);
