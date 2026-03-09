@@ -60,7 +60,7 @@ const StatCard = ({ title, value, icon: Icon, trend }: any) => (
 );
 
 const StatusBadge = ({ status }: { status: ProductionStatus }) => (
-  <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${STATUS_COLORS[status]}`}>
+  <span className={`inline-flex items-center whitespace-nowrap px-2.5 py-0.5 rounded-full text-xs font-medium border ${STATUS_COLORS[status]}`}>
     {STATUS_LABELS[status]}
   </span>
 );
@@ -1229,8 +1229,8 @@ export default function App() {
 
               {/* Table */}
               <div className="glass-card rounded-2xl">
-                <div>
-                  <table className="w-full text-left border-collapse">
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[980px] text-left border-collapse">
                     <thead>
                       <tr className="bg-app-surface-hover/50 border-b border-app-border">
                         <th className="px-4 py-4 text-xs font-semibold text-app-text-secondary uppercase tracking-wider w-[52px]">
