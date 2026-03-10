@@ -8,6 +8,7 @@ import {
   Search, 
   Filter, 
   MoreHorizontal,
+  Menu,
   TrendingUp,
   Clock,
   AlertCircle,
@@ -43,19 +44,19 @@ import {
 // --- Components ---
 
 const StatCard = ({ title, value, icon: Icon, trend }: any) => (
-  <div className="glass-card p-6 rounded-2xl">
-    <div className="flex justify-between items-start mb-4">
-      <div className="p-2 bg-app-surface-hover rounded-lg">
-        <Icon className="w-5 h-5 text-app-text-secondary" />
+  <div className="glass-card p-3 sm:p-6 rounded-2xl">
+    <div className="flex justify-between items-start mb-2 sm:mb-4">
+      <div className="p-1.5 sm:p-2 bg-app-surface-hover rounded-lg">
+        <Icon className="w-4 h-4 sm:w-5 sm:h-5 text-app-text-secondary" />
       </div>
       {trend && (
-        <span className="text-xs font-medium text-emerald-400 bg-emerald-900/30 px-2 py-1 rounded-full border border-emerald-800/50">
+        <span className="text-[10px] sm:text-xs font-medium text-emerald-400 bg-emerald-900/30 px-2 py-1 rounded-full border border-emerald-800/50">
           {trend}
         </span>
       )}
     </div>
-    <h3 className="text-app-text-secondary text-sm font-medium">{title}</h3>
-    <p className="text-2xl font-bold mt-1 text-app-text-primary">{value}</p>
+    <h3 className="text-app-text-secondary text-[10px] sm:text-sm font-medium">{title}</h3>
+    <p className="text-base sm:text-2xl font-bold mt-1 text-app-text-primary">{value}</p>
   </div>
 );
 
@@ -145,6 +146,7 @@ export default function App() {
 
   const [isGeneratingSeo, setIsGeneratingSeo] = useState(false);
   const [seoError, setSeoError] = useState<string | null>(null);
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
 
   // Global toast error for AI + Firebase operations
   const [appError, setAppError] = useState<string | null>(null);
@@ -760,9 +762,9 @@ export default function App() {
   const missingSynopsis = films.filter(f => !f.summary_vi || f.summary_vi.length < 10).length;
 
   return (
-    <div className="min-h-screen flex bg-app-bg text-app-text-primary">
+    <div className="min-h-screen lg:h-screen flex flex-col lg:flex-row bg-app-bg text-app-text-primary lg:overflow-hidden">
       {/* Sidebar */}
-      <aside className="w-64 border-r border-app-border bg-app-surface flex flex-col">
+      <aside className="hidden lg:flex w-64 border-r border-app-border bg-app-surface flex-col h-full">
         <div className="p-6 border-b border-app-border">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-app-accent rounded-lg flex items-center justify-center">
@@ -805,22 +807,32 @@ export default function App() {
           </button>
         </nav>
 
-        <div className="p-4 border-t border-app-border">
-          <div className="bg-app-surface-hover rounded-xl p-4">
-            <p className="text-xs font-semibold text-app-text-secondary uppercase tracking-wider mb-2">Storage</p>
-            <div className="w-full bg-app-border h-1.5 rounded-full overflow-hidden">
-              <div className="bg-app-accent h-full w-1/3"></div>
+        <div className="border-t border-app-border">
+          <div className="p-4">
+            <div className="bg-app-surface-hover rounded-xl p-4">
+              <p className="text-xs font-semibold text-app-text-secondary uppercase tracking-wider mb-2">Storage</p>
+              <div className="w-full bg-app-border h-1.5 rounded-full overflow-hidden">
+                <div className="bg-app-accent h-full w-1/3"></div>
+              </div>
+              <p className="text-[10px] text-app-text-secondary mt-2">1.2GB of 10GB used</p>
             </div>
-            <p className="text-[10px] text-app-text-secondary mt-2">1.2GB of 10GB used</p>
           </div>
         </div>
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col min-w-0 overflow-x-hidden">
+      <main className="flex-1 flex flex-col min-w-0 overflow-x-hidden lg:overflow-y-auto">
         {/* Header */}
-        <header className="h-16 border-b border-app-border bg-app-surface/80 backdrop-blur-md sticky top-0 z-10 px-8 flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <header className="border-b border-app-border bg-app-surface/80 backdrop-blur-md sticky top-0 z-20 px-4 lg:px-8 py-3 lg:py-3 flex flex-col lg:flex-row lg:items-center justify-between gap-3 lg:gap-0">
+          <div className="flex flex-wrap items-center gap-2 lg:gap-4">
+            <button
+              type="button"
+              onClick={() => setIsMobileNavOpen(true)}
+              className="lg:hidden p-2 rounded-lg border border-app-border text-app-text-secondary hover:text-app-text-primary hover:bg-app-surface-hover transition-colors"
+              title="Open navigation"
+            >
+              <Menu className="w-4 h-4" />
+            </button>
             <h2 className="text-lg font-semibold capitalize text-app-text-primary">{view}</h2>
             {isSyncing && (
               <div className="flex items-center gap-2 px-3 py-1 bg-app-accent/10 border border-app-accent/20 rounded-full">
@@ -841,18 +853,18 @@ export default function App() {
               </div>
             )}
           </div>
-          <div className="flex items-center gap-4">
-            <div className="relative">
+          <div className="flex items-center gap-2 sm:gap-4 w-full lg:w-auto">
+            <div className="relative flex-1 sm:w-64 sm:flex-none">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-app-text-secondary" />
               <input 
                 type="text" 
                 placeholder="Search films by title..." 
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="pl-10 pr-4 py-2 bg-app-surface-hover border border-app-border rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-app-accent/20 w-64 text-app-text-primary placeholder:text-app-text-secondary/50"
+                className="pl-10 pr-4 py-2 bg-app-surface-hover border border-app-border rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-app-accent/20 w-full text-app-text-primary placeholder:text-app-text-secondary/50"
               />
               {normalizedSearch && (
-                <div className="absolute mt-2 left-0 w-80 max-h-80 overflow-y-auto bg-app-surface border border-app-border rounded-2xl shadow-xl z-20">
+                <div className="absolute mt-2 left-0 w-full sm:w-80 max-h-80 overflow-y-auto bg-app-surface border border-app-border rounded-2xl shadow-xl z-20">
                   {filteredFilms.slice(0, 8).length > 0 ? (
                     filteredFilms.slice(0, 8).map(film => (
                       <button
@@ -904,13 +916,109 @@ export default function App() {
             </div>
             <button 
               onClick={() => openEditModal()}
-              className="bg-app-accent text-white px-4 py-2 rounded-full text-sm font-medium flex items-center gap-2 hover:opacity-90 transition-opacity"
+              className="bg-app-accent text-white px-3 sm:px-4 py-2 rounded-full text-sm font-medium flex items-center justify-center gap-2 hover:opacity-90 transition-opacity shrink-0"
             >
               <Plus className="w-4 h-4" />
-              New Film
+              New
             </button>
           </div>
         </header>
+
+        {/* Mobile Navigation (Off-canvas) */}
+        <AnimatePresence>
+          {isMobileNavOpen && (
+            <div className="fixed inset-0 z-40 lg:hidden">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setIsMobileNavOpen(false)}
+                className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
+              />
+              <motion.aside
+                initial={{ x: -320 }}
+                animate={{ x: 0 }}
+                exit={{ x: -320 }}
+                transition={{ type: "spring", stiffness: 260, damping: 28 }}
+                className="absolute left-0 top-0 bottom-0 w-72 bg-app-surface border-r border-app-border shadow-2xl p-4 flex flex-col"
+              >
+                <div className="flex items-center justify-between pb-4 border-b border-app-border">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-app-accent rounded-lg flex items-center justify-center">
+                      <FilmIcon className="w-5 h-5 text-white" />
+                    </div>
+                    <h1 className="font-bold text-lg tracking-tight text-app-text-primary">FilmAnalyzer</h1>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex items-center gap-2">
+                  <div className={`w-2 h-2 rounded-full ${
+                    connectionStatus === "connected" ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" : 
+                    connectionStatus === "connecting" ? "bg-amber-500 animate-pulse" : "bg-red-500"
+                  }`} />
+                  <span className="text-[10px] font-semibold text-app-text-secondary uppercase tracking-widest">
+                    {connectionStatus}
+                  </span>
+                </div>
+
+                <nav className="mt-6 space-y-2">
+                  <button
+                    onClick={() => {
+                      setView("dashboard");
+                      setIsMobileNavOpen(false);
+                    }}
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                      view === "dashboard"
+                        ? "bg-app-accent text-white"
+                        : "text-app-text-secondary hover:bg-app-surface-hover hover:text-app-text-primary"
+                    }`}
+                  >
+                    <LayoutDashboard className="w-4 h-4" />
+                    Dashboard
+                  </button>
+                  <button
+                    onClick={() => {
+                      setView("films");
+                      setIsMobileNavOpen(false);
+                    }}
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                      view === "films"
+                        ? "bg-app-accent text-white"
+                        : "text-app-text-secondary hover:bg-app-surface-hover hover:text-app-text-primary"
+                    }`}
+                  >
+                    <FilmIcon className="w-4 h-4" />
+                    All Films
+                  </button>
+                  <button
+                    onClick={() => {
+                      setView("settings");
+                      setIsMobileNavOpen(false);
+                    }}
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                      view === "settings"
+                        ? "bg-app-accent text-white"
+                        : "text-app-text-secondary hover:bg-app-surface-hover hover:text-app-text-primary"
+                    }`}
+                  >
+                    <SettingsIcon className="w-4 h-4" />
+                    Settings
+                  </button>
+                </nav>
+
+                <div className="mt-auto pt-4 border-t border-app-border">
+                  <div className="bg-app-surface-hover rounded-xl p-4">
+                    <p className="text-xs font-semibold text-app-text-secondary uppercase tracking-wider mb-2">Storage</p>
+                    <div className="w-full bg-app-border h-1.5 rounded-full overflow-hidden">
+                      <div className="bg-app-accent h-full w-1/3"></div>
+                    </div>
+                    <p className="text-[10px] text-app-text-secondary mt-2">1.2GB of 10GB used</p>
+                  </div>
+                </div>
+              </motion.aside>
+            </div>
+          )}
+        </AnimatePresence>
 
         {/* Floating global error toast for AI + Firebase operations */}
         {appError && (
@@ -922,22 +1030,30 @@ export default function App() {
           </div>
         )}
 
-        <div className="p-8 max-w-7xl mx-auto w-full">
+        <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
           {view === "dashboard" ? (
             <div className="space-y-8">
               {/* Stats Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <StatCard title="Total Films" value={totalFilms} icon={FilmIcon} />
-                <StatCard title="In Analysis" value={inProduction} icon={TrendingUp} />
-                <StatCard title="Released" value={released} icon={CheckCircle2} />
-                <StatCard
-                  title="Avg. Score"
-                  value={(
-                    films.reduce((acc, f) => acc + (f.score || 0), 0) /
-                    (films.length || 1)
-                  ).toFixed(1)}
-                  icon={Clock}
-                />
+              <div className="grid grid-cols-4 gap-2 sm:gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div>
+                  <StatCard title="Total Films" value={totalFilms} icon={FilmIcon} />
+                </div>
+                <div>
+                  <StatCard title="In Analysis" value={inProduction} icon={TrendingUp} />
+                </div>
+                <div>
+                  <StatCard title="Released" value={released} icon={CheckCircle2} />
+                </div>
+                <div>
+                  <StatCard
+                    title="Avg. Score"
+                    value={(
+                      films.reduce((acc, f) => acc + (f.score || 0), 0) /
+                      (films.length || 1)
+                    ).toFixed(1)}
+                    icon={Clock}
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -1003,7 +1119,7 @@ export default function App() {
             <div className="space-y-4">
               {/* Filters + Pagination */}
               <div className="space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                   <div className="flex flex-wrap items-center gap-3">
                     {/* Status filter (dropdown) */}
                     <div
@@ -1165,7 +1281,7 @@ export default function App() {
                   </div>
 
                   {filteredFilms.length > 0 && (
-                    <div className="flex items-center gap-4 text-xs text-app-text-secondary">
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-app-text-secondary">
                       <div className="flex items-center gap-2">
                         <span className="text-[11px] text-app-text-secondary whitespace-nowrap">
                           Sort
@@ -1190,7 +1306,7 @@ export default function App() {
                           {sortDirection === "asc" ? "↑" : "↓"}
                         </button>
                       </div>
-                      <span>
+                      <span className="whitespace-nowrap">
                         Page{" "}
                         <span className="font-semibold text-app-text-primary">{currentPage}</span>{" "}
                         of{" "}
@@ -1227,8 +1343,118 @@ export default function App() {
                 </div>
               </div>
 
+              {/* Mobile Cards */}
+              <div className="lg:hidden space-y-3">
+                {paginatedFilms.map((film, index) => {
+                  const filmCollections = (film.collections && Array.isArray(film.collections)) ? film.collections : [];
+                  const updatedSource = (film as any).updatedAt || (film as any).createdAt || null;
+                  const clickableVideoUrl = toClickableUrl(film.videoUrl || "");
+                  const updatedLabel = updatedSource
+                    ? new Date(updatedSource).toLocaleDateString()
+                    : "—";
+
+                  return (
+                    <button
+                      key={`mobile-film-${film.id}`}
+                      type="button"
+                      onClick={() => openEditModal(film)}
+                      className="w-full text-left glass-card rounded-2xl p-4 space-y-3 hover:bg-app-surface-hover/40 transition-colors"
+                      title={`${film.translatedTitle || film.title}${
+                        film.originalTitle ? ` • ${film.originalTitle}` : ""
+                      } • ${STATUS_LABELS[film.status]} • Score: ${film.score || "—"}/10`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="w-12 h-16 bg-app-surface-hover rounded-lg overflow-hidden flex-shrink-0 border border-app-border shadow-sm shadow-black/40">
+                          {film.originalPoster ? (
+                            <img
+                              src={film.originalPoster}
+                              alt={film.title}
+                              className="w-full h-full object-cover"
+                              referrerPolicy="no-referrer"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-app-text-secondary/30">
+                              <FilmIcon className="w-5 h-5" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <div className="font-semibold text-app-text-primary line-clamp-2">
+                            {film.translatedTitle || film.title}
+                          </div>
+                          {film.originalTitle && (
+                            <div className="text-[11px] text-app-text-secondary/80 italic line-clamp-1">
+                              {film.originalTitle}
+                            </div>
+                          )}
+                          {film.episodeCount && film.episodeCount > 0 && (
+                            <div className="text-[11px] text-app-text-secondary/90">
+                              Episodes: <span className="font-medium text-app-text-primary">{film.episodeCount}</span>
+                            </div>
+                          )}
+                          {film.videoUrl && (
+                            <div className="text-[11px] text-app-text-secondary/90 line-clamp-1">
+                              {clickableVideoUrl ? (
+                                <a
+                                  href={clickableVideoUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-app-accent hover:underline"
+                                  onClick={e => e.stopPropagation()}
+                                  title={film.videoUrl}
+                                >
+                                  {film.videoUrl}
+                                </a>
+                              ) : (
+                                <span title={film.videoUrl}>{film.videoUrl}</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-[10px] font-mono text-app-text-secondary">
+                          {((currentPage - 1) * FILMS_PER_PAGE + index + 1).toString().padStart(2, "0")}
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 text-[11px] text-app-text-secondary">
+                        <span className="inline-flex items-center justify-center px-2 py-1 rounded-full bg-app-surface-hover border border-app-border font-mono text-[11px] text-app-text-primary">
+                          {film.score || "—"}/10
+                        </span>
+                        <StatusBadge status={film.status} />
+                        <span className="inline-flex items-center px-2 py-1 rounded-full bg-app-surface-hover border border-app-border">
+                          Updated: {updatedLabel}
+                        </span>
+                      </div>
+                      {filmCollections.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {filmCollections.slice(0, 4).map(collection => (
+                            <span
+                              key={`mobile-collection-${film.id}-${collection}`}
+                              className="inline-flex items-center px-2 py-0.5 rounded-full bg-app-surface-hover border border-app-border text-[11px] text-app-text-secondary"
+                            >
+                              <span className="max-w-[140px] truncate">
+                                {sanitizeCollectionLabel(collection)}
+                              </span>
+                            </span>
+                          ))}
+                          {filmCollections.length > 4 && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-app-surface-hover border border-dashed border-app-border text-[11px] text-app-text-secondary">
+                              +{filmCollections.length - 4}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+                {paginatedFilms.length === 0 && (
+                  <div className="glass-card rounded-2xl p-8 text-center text-app-text-secondary">
+                    No films found. Create your first project to get started.
+                  </div>
+                )}
+              </div>
+
               {/* Table */}
-              <div className="glass-card rounded-2xl">
+              <div className="glass-card rounded-2xl hidden lg:block">
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[980px] text-left border-collapse">
                     <thead>
@@ -1641,23 +1867,59 @@ export default function App() {
                   )}
                 </div>
               </div>
+              {filteredFilms.length > 0 && (
+                <div className="lg:hidden flex items-center justify-between gap-2 text-xs text-app-text-secondary">
+                  <span className="whitespace-nowrap">
+                    Page{" "}
+                    <span className="font-semibold text-app-text-primary">{currentPage}</span>{" "}
+                    of{" "}
+                    <span className="font-semibold text-app-text-primary">{totalPages}</span>
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={currentPage === 1}
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      className={`px-3 py-1.5 rounded-full border text-[11px] font-medium transition-colors ${
+                        currentPage === 1
+                          ? "border-app-border text-app-text-secondary/50 cursor-not-allowed bg-app-surface"
+                          : "border-app-border text-app-text-primary bg-app-surface-hover hover:border-app-accent/60 hover:text-app-accent"
+                      }`}
+                    >
+                      Previous
+                    </button>
+                    <button
+                      type="button"
+                      disabled={currentPage === totalPages}
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      className={`px-3 py-1.5 rounded-full border text-[11px] font-medium transition-colors ${
+                        currentPage === totalPages
+                          ? "border-app-border text-app-text-secondary/50 cursor-not-allowed bg-app-surface"
+                          : "border-app-border text-app-text-primary bg-app-surface-hover hover:border-app-accent/60 hover:text-app-accent"
+                      }`}
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
-            <div className="w-full max-w-5xl mx-auto space-y-8">
-              <div className="glass-card rounded-2xl p-8">
-                <div className="flex items-center gap-4 mb-6">
-                  <div className="p-3 bg-app-accent/10 rounded-2xl">
-                    <SettingsIcon className="w-6 h-6 text-app-accent" />
+            <div className="w-full max-w-7xl mx-auto space-y-4 sm:space-y-6">
+              <div className="glass-card rounded-2xl p-4 sm:p-6">
+                <div className="flex items-center gap-3 mb-3 sm:mb-4">
+                  <div className="p-1.5 sm:p-2 bg-app-accent/10 rounded-xl">
+                    <SettingsIcon className="w-4 h-4 sm:w-5 sm:h-5 text-app-accent" />
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-app-text-primary">Configuration</h3>
-                    <p className="text-sm text-app-text-secondary">The data is stored locally in your browser (localStorage).</p>
+                    <h3 className="text-base sm:text-lg font-bold text-app-text-primary">Configuration</h3>
+                    <p className="text-[11px] sm:text-xs text-app-text-secondary">The data is stored locally in your browser (localStorage).</p>
                   </div>
                 </div>
 
-                <div className="space-y-5">
+                <div className="space-y-3 sm:space-y-4">
                   <div>
-                    <label className="block text-xs font-bold text-app-text-secondary uppercase tracking-wider mb-2">
+                    <label className="block text-[10px] sm:text-[11px] font-bold text-app-text-secondary uppercase tracking-wider mb-1.5">
                       Gemini API key
                     </label>
                     <div className="relative">
@@ -1666,7 +1928,7 @@ export default function App() {
                         value={settingsGeminiApiKey}
                         onChange={(e) => setSettingsGeminiApiKey(e.target.value)}
                         placeholder="AI KEY"
-                        className="w-full pr-12 px-4 py-3 bg-app-surface-hover border border-app-border rounded-xl focus:outline-none focus:ring-2 focus:ring-app-accent/20 transition-all text-sm text-app-text-primary placeholder:text-app-text-secondary/50"
+                        className="w-full pr-12 px-3 py-2 bg-app-surface-hover border border-app-border rounded-xl focus:outline-none focus:ring-2 focus:ring-app-accent/20 transition-all text-[11px] sm:text-xs text-app-text-primary placeholder:text-app-text-secondary/50"
                       />
                       <button
                         type="button"
@@ -1680,14 +1942,14 @@ export default function App() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-app-text-secondary uppercase tracking-wider mb-2">
+                    <label className="block text-[10px] sm:text-[11px] font-bold text-app-text-secondary uppercase tracking-wider mb-1.5">
                       Firebase database config (JSON)
                     </label>
                     <div className="relative">
                       <button
                         type="button"
                         onClick={() => setShowFirebaseConfig((prev) => !prev)}
-                        className="absolute top-2 right-2 z-10 inline-flex items-center gap-1 px-2 py-1 rounded-md bg-app-surface border border-app-border text-xs text-app-text-secondary hover:text-app-text-primary"
+                        className="absolute top-2 right-2 z-10 inline-flex items-center gap-1 px-2 py-1 rounded-md bg-app-surface border border-app-border text-[10px] sm:text-[11px] text-app-text-secondary hover:text-app-text-primary"
                         title={showFirebaseConfig ? "Hide Firebase config" : "Show Firebase config"}
                       >
                         {showFirebaseConfig ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -1704,7 +1966,7 @@ export default function App() {
                           }}
                           rows={1}
                           placeholder={FIREBASE_CONFIG_SAMPLE}
-                          className="w-full pr-24 px-4 py-3 bg-app-surface-hover border border-app-border rounded-xl focus:outline-none focus:ring-2 focus:ring-app-accent/20 transition-all resize-none overflow-hidden text-sm text-app-text-primary placeholder:text-app-text-secondary/50"
+                          className="w-full pr-20 sm:pr-24 px-3 py-2 bg-app-surface-hover border border-app-border rounded-xl focus:outline-none focus:ring-2 focus:ring-app-accent/20 transition-all resize-none overflow-hidden text-[11px] sm:text-xs text-app-text-primary placeholder:text-app-text-secondary/50"
                         />
                       ) : (
                         <textarea
@@ -1712,39 +1974,39 @@ export default function App() {
                           value={maskedFirebaseConfig}
                           readOnly
                           rows={1}
-                          className="w-full pr-24 px-4 py-3 bg-app-surface-hover border border-app-border rounded-xl transition-all resize-none overflow-hidden text-sm text-app-text-secondary"
+                          className="w-full pr-20 sm:pr-24 px-3 py-2 bg-app-surface-hover border border-app-border rounded-xl transition-all resize-none overflow-hidden text-[11px] sm:text-xs text-app-text-secondary"
                         />
                       )}
                     </div>
                   </div>
 
                   {settingsMessage && (
-                    <div className="text-xs text-emerald-400 font-medium">{settingsMessage}</div>
+                    <div className="text-[10px] sm:text-[11px] text-emerald-400 font-medium">{settingsMessage}</div>
                   )}
 
                   {!isFirebaseConfigured && (
-                    <div className="p-4 bg-red-900/20 border border-red-800/50 rounded-xl text-sm text-red-200/80">
+                    <div className="p-2.5 bg-red-900/20 border border-red-800/50 rounded-xl text-[11px] text-red-200/80">
                       Firebase is missing required keys. Please provide `apiKey`, `authDomain`, `projectId`, `storageBucket`, `messagingSenderId`, and `appId`.
                     </div>
                   )}
                 </div>
               </div>
 
-              <div className="glass-card rounded-2xl p-8">
-                <div className="flex items-center gap-4 mb-8">
-                  <div className="p-3 bg-app-accent/10 rounded-2xl">
-                    <Database className="w-6 h-6 text-app-accent" />
+              <div className="glass-card rounded-2xl p-4 sm:p-6">
+                <div className="flex items-center gap-3 mb-3 sm:mb-4">
+                  <div className="p-1.5 sm:p-2 bg-app-accent/10 rounded-xl">
+                    <Database className="w-4 h-4 sm:w-5 sm:h-5 text-app-accent" />
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-app-text-primary">Database Status</h3>
-                    <p className="text-sm text-app-text-secondary">Monitor your Firebase connection and sync health.</p>
+                    <h3 className="text-base sm:text-lg font-bold text-app-text-primary">Database Status</h3>
+                    <p className="text-[11px] sm:text-xs text-app-text-secondary">Monitor your Firebase connection and sync health.</p>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="p-6 bg-app-surface-hover rounded-2xl border border-app-border">
-                    <div className="flex justify-between items-start mb-4">
-                      <span className="text-xs font-bold text-app-text-secondary uppercase tracking-wider">Connection</span>
+                <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                  <div className="p-3 sm:p-4 bg-app-surface-hover rounded-2xl border border-app-border">
+                    <div className="flex justify-between items-start mb-2 sm:mb-3">
+                      <span className="text-[10px] sm:text-[11px] font-bold text-app-text-secondary uppercase tracking-wider">Connection</span>
                       {connectionStatus === "connected" ? (
                         <Wifi className="w-4 h-4 text-emerald-500" />
                       ) : connectionStatus === "connecting" ? (
@@ -1758,34 +2020,34 @@ export default function App() {
                         connectionStatus === "connected" ? "bg-emerald-500" : 
                         connectionStatus === "connecting" ? "bg-amber-500" : "bg-red-500"
                       }`} />
-                      <span className="text-lg font-bold capitalize text-app-text-primary">{connectionStatus}</span>
+                      <span className="text-sm sm:text-base font-bold capitalize text-app-text-primary">{connectionStatus}</span>
                     </div>
-                    <p className="text-xs text-app-text-secondary mt-2">
+                    <p className="text-[10px] sm:text-[11px] text-app-text-secondary mt-2">
                       {connectionStatus === "connected" ? "System is online and syncing." : "Attempting to reach Firebase..."}
                     </p>
                   </div>
 
-                  <div className="p-6 bg-app-surface-hover rounded-2xl border border-app-border">
-                    <div className="flex justify-between items-start mb-4">
-                      <span className="text-xs font-bold text-app-text-secondary uppercase tracking-wider">Last Sync</span>
+                  <div className="p-3 sm:p-4 bg-app-surface-hover rounded-2xl border border-app-border">
+                    <div className="flex justify-between items-start mb-2 sm:mb-3">
+                      <span className="text-[10px] sm:text-[11px] font-bold text-app-text-secondary uppercase tracking-wider">Last Sync</span>
                       <Clock className="w-4 h-4 text-app-text-secondary" />
                     </div>
-                    <div className="text-lg font-bold text-app-text-primary">{lastSyncTime || "Never"}</div>
-                    <p className="text-xs text-app-text-secondary mt-2">Time of last successful data fetch.</p>
+                    <div className="text-sm sm:text-base font-bold text-app-text-primary">{lastSyncTime || "Never"}</div>
+                    <p className="text-[10px] sm:text-[11px] text-app-text-secondary mt-2">Time of last successful data fetch.</p>
                   </div>
 
-                  <div className="p-6 bg-app-surface-hover rounded-2xl border border-app-border">
-                    <div className="flex justify-between items-start mb-4">
-                      <span className="text-xs font-bold text-app-text-secondary uppercase tracking-wider">Environment</span>
+                  <div className="p-3 sm:p-4 bg-app-surface-hover rounded-2xl border border-app-border">
+                    <div className="flex justify-between items-start mb-2 sm:mb-3">
+                      <span className="text-[10px] sm:text-[11px] font-bold text-app-text-secondary uppercase tracking-wider">Environment</span>
                       <AlertCircle className="w-4 h-4 text-app-text-secondary" />
                     </div>
-                    <div className="text-lg font-bold text-app-text-primary">Production</div>
-                    <p className="text-xs text-app-text-secondary mt-2">Current application deployment tier.</p>
+                    <div className="text-sm sm:text-base font-bold text-app-text-primary">Production</div>
+                    <p className="text-[10px] sm:text-[11px] text-app-text-secondary mt-2">Current application deployment tier.</p>
                   </div>
 
-                  <div className="p-6 bg-app-surface-hover rounded-2xl border border-app-border">
-                    <div className="flex justify-between items-start mb-4">
-                      <span className="text-xs font-bold text-app-text-secondary uppercase tracking-wider">Health Check</span>
+                  <div className="p-3 sm:p-4 bg-app-surface-hover rounded-2xl border border-app-border">
+                    <div className="flex justify-between items-start mb-2 sm:mb-3">
+                      <span className="text-[10px] sm:text-[11px] font-bold text-app-text-secondary uppercase tracking-wider">Health Check</span>
                       <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                     </div>
                     <button 
@@ -1802,11 +2064,11 @@ export default function App() {
                           setIsSyncing(false);
                         }
                       }}
-                      className="text-sm font-bold text-app-accent hover:underline flex items-center gap-2"
+                      className="text-[11px] sm:text-xs font-bold text-app-accent hover:underline flex items-center gap-2"
                     >
                       Run Manual Check
                     </button>
-                    <p className="text-xs text-app-text-secondary mt-2">Verify database responsiveness.</p>
+                    <p className="text-[10px] sm:text-[11px] text-app-text-secondary mt-2">Verify database responsiveness.</p>
                   </div>
                 </div>
               </div>
